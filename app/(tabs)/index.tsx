@@ -1,98 +1,129 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React from "react";
+import { ScrollView, Text, View } from "react-native";
+import { theme } from "../../src/theme/theme";
+import { Button } from "../../src/ui/Button";
+import { Card } from "../../src/ui/Card";
+import { Screen } from "../../src/ui/Screen";
 
 export default function HomeScreen() {
+  const router = useRouter();
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <Screen>
+      <ScrollView>
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: theme.colors.bg,
+            padding: theme.spacing(2),
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Text
+              style={{
+                color: theme.colors.text,
+                fontSize: 33,
+                fontWeight: "900",
+              }}
+            >
+              TíoPet
+            </Text>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+            <MaterialCommunityIcons
+              name="paw"
+              size={33}
+              color={theme.colors.warn} // aquí controlas el color
+            />
+          </View>
+
+          {/*           <Text
+            style={{
+              color: theme.colors.text,
+              fontSize: 34,
+              fontWeight: "900",
+              marginTop: 8,
+            }}
+          >
+            TíoPet 🐾
+          </Text>  */}
+          <Text
+            style={{
+              color: theme.colors.muted,
+              marginTop: 8,
+              fontSize: 14,
+              lineHeight: 20,
+            }}
+          >
+            Latacunga • Quito • Porto Viejo
+          </Text>
+
+          <Card style={{ marginTop: theme.spacing(3) }}>
+            <Text
+              style={{
+                color: theme.colors.text,
+                fontSize: 18,
+                fontWeight: "800",
+              }}
+            >
+              ¿Qué necesitas hoy?
+            </Text>
+            <Text
+              style={{
+                color: theme.colors.muted,
+                marginTop: 6,
+                fontSize: 14,
+                lineHeight: 20,
+              }}
+            >
+              Guardería, transporte y tíos de confianza. Tu peludito, seguro y
+              feliz.
+            </Text>
+
+            <View style={{ marginTop: theme.spacing(2), gap: 12 }}>
+              <Button
+                title="Reservar cuidado"
+                onPress={() => router.push("/(tabs)/bookings")}
+              />
+
+              <Button
+                title="Pedir transporte"
+                variant="secondary"
+                onPress={() => router.push("/(tabs)/transport")}
+              />
+
+              <Button
+                title="Tienda: snacks y baño"
+                variant="secondary"
+                onPress={() => router.push("/(tabs)/shop")}
+              />
+            </View>
+          </Card>
+
+          <Card style={{ marginTop: theme.spacing(2) }}>
+            <Text
+              style={{
+                color: theme.colors.text,
+                fontSize: 16,
+                fontWeight: "800",
+              }}
+            >
+              Tu confianza es el producto
+            </Text>
+            <Text
+              style={{
+                color: theme.colors.muted,
+                marginTop: 6,
+                fontSize: 13,
+                lineHeight: 19,
+              }}
+            >
+              Validaciones, testimonios, reportes diarios con fotos, y
+              seguimiento de cada servicio.
+            </Text>
+          </Card>
+        </View>
+      </ScrollView>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
