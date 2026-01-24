@@ -1,7 +1,17 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, Switch, Text, View } from "react-native";
+import {
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Switch,
+  Text,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
 import { usePetsStore } from "../../src/store/petsStore";
 import { theme } from "../../src/theme/theme";
 import { Button } from "../../src/ui/Button";
@@ -9,7 +19,7 @@ import { Card } from "../../src/ui/Card";
 import { Screen } from "../../src/ui/Screen";
 
 type City = "Latacunga" | "Quito" | "Porto Viejo";
-type DatePick = "Hoy" | "Mañana" | "Este sábado";
+type DatePick = "Hoy" | "Mañana" | "Este sábado" | "Otra fecha";
 
 type PlanId = "bb" | "consientan" | "principe";
 
@@ -375,6 +385,17 @@ export default function BookingsScreen() {
   const [vetCheck, setVetCheck] = useState(false);
   const [brush, setBrush] = useState(false);
   const [fullGroom, setFullGroom] = useState(false);
+  const [customDate, setCustomDate] = useState<Date | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+
+  const dateLabel = customDate
+    ? new Intl.DateTimeFormat("es-EC", {
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(customDate)
+    : datePick;
 
   const selectedPlan = useMemo(
     () => PLANS.find((p) => p.id === planId) ?? PLANS[0],
@@ -395,6 +416,39 @@ export default function BookingsScreen() {
 
     return selectedPlan.basePrice + cityAdj + vet;
   }, [selectedPlan, city, vetCheck]);
+  const today = new Date();
+
+  function formatDateLabel() {
+    const d = customDate ?? new Date();
+
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    };
+
+    const formatted = d.toLocaleDateString("es-EC", options);
+
+    if (datePick === "Hoy") return `Hoy · ${formatted}`;
+    if (datePick === "Mañana") return `Mañana · ${formatted}`;
+    if (datePick === "Este sábado") return `Este sábado · ${formatted}`;
+
+    // Otra fecha
+    return `Otra fecha · ${formatted}`;
+  }
+
+  function addDays(base: Date, days: number) {
+    const d = new Date(base);
+    d.setDate(d.getDate() + days);
+    return d;
+  }
+
+  function nextSaturday(base: Date) {
+    const d = new Date(base);
+    const day = d.getDay(); // 0=domingo ... 6=sábado
+    const diff = (6 - day + 7) % 7;
+    return addDays(d, diff === 0 ? 7 : diff);
+  }
 
   return (
     <Screen>
@@ -727,18 +781,130 @@ export default function BookingsScreen() {
             <Pill
               label="Hoy"
               active={datePick === "Hoy"}
-              onPress={() => setDatePick("Hoy")}
+              onPress={() => {
+                setDatePick("Hoy");
+                setCustomDate(new Date());
+                setShowPicker(false);
+              }}
             />
             <Pill
               label="Mañana"
               active={datePick === "Mañana"}
-              onPress={() => setDatePick("Mañana")}
+              onPress={() => {
+                setDatePick("Mañana");
+                setCustomDate(addDays(new Date(), 1));
+                setShowPicker(false);
+              }}
             />
             <Pill
               label="Este sábado"
               active={datePick === "Este sábado"}
-              onPress={() => setDatePick("Este sábado")}
+              onPress={() => {
+                setDatePick("Este sábado");
+                setCustomDate(nextSaturday(new Date()));
+                setShowPicker(false);
+              }}
             />
+            <Pressable
+              onPress={() => setShowPicker(true)}
+              style={{
+                marginTop: 12,
+                borderRadius: theme.radius.xl,
+                borderWidth: 1,
+                borderColor: theme.colors.line,
+                backgroundColor: theme.colors.surface2,
+                padding: theme.spacing(2),
+              }}
+            >
+              <Modal visible={showPicker} transparent animationType="slide">
+                <TouchableWithoutFeedback onPress={() => setShowPicker(false)}>
+                  <View
+                    style={{
+                      flex: 1,
+                      backgroundColor: "rgba(0,0,0,0.74)",
+                      padding: theme.spacing(2),
+                      justifyContent: "flex-end",
+                      paddingBottom: 90, // 👈 SUBE el sheet (aprox 15–20%)
+                    }}
+                  >
+                    <TouchableWithoutFeedback>
+                      <View
+                        style={{
+                          backgroundColor: theme.colors.surface,
+                          borderRadius: theme.radius.xl,
+                          borderWidth: 1,
+                          borderColor: theme.colors.line,
+                          padding: theme.spacing(2),
+                        }}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            marginBottom: 10,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: theme.colors.text,
+                              fontWeight: "900",
+                              fontSize: 16,
+                            }}
+                          >
+                            Elegir fecha
+                          </Text>
+
+                          <Pressable
+                            onPress={() => setShowPicker(false)}
+                            style={{
+                              paddingVertical: 8,
+                              paddingHorizontal: 12,
+                              borderRadius: 999,
+                              borderWidth: 1,
+                              borderColor: theme.colors.line,
+                              backgroundColor: theme.colors.surface2,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: theme.colors.text,
+                                fontWeight: "800",
+                              }}
+                            >
+                              Listo
+                            </Text>
+                          </Pressable>
+                        </View>
+
+                        <DateTimePicker
+                          value={customDate ?? new Date()}
+                          mode="date"
+                          display={Platform.OS === "ios" ? "inline" : "default"}
+                          onChange={(_, selected) => {
+                            if (selected) {
+                              setCustomDate(selected);
+                              setDatePick("Otra fecha");
+                            }
+                            if (Platform.OS !== "ios") setShowPicker(false);
+                          }}
+                        />
+                      </View>
+                    </TouchableWithoutFeedback>
+                  </View>
+                </TouchableWithoutFeedback>
+              </Modal>
+
+              <Text style={{ color: theme.colors.text, fontWeight: "900" }}>
+                📅 Elegir otra fecha
+              </Text>
+
+              <Text style={{ color: theme.colors.muted, marginTop: 6 }}>
+                {customDate
+                  ? `Seleccionada: ${formatDateLabel()}`
+                  : "Si no es hoy/mañana/sábado, elige aquí"}
+              </Text>
+            </Pressable>
           </View>
         </Card>
 
@@ -860,7 +1026,7 @@ export default function BookingsScreen() {
 
             <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
               <Chip icon="map-marker" label="Ciudad" value={city} />
-              <Chip icon="calendar" label="Fecha" value={datePick} />
+              <Chip icon="calendar" label="Fecha" value={formatDateLabel()} />
             </View>
           </View>
 
@@ -907,7 +1073,7 @@ export default function BookingsScreen() {
                     planId,
                     time: careTimeLabel,
                     city,
-                    date: datePick,
+                    date: formatDateLabel(),
                     total: moneyUSD(total),
                   },
                 });
