@@ -374,6 +374,7 @@ export default function BookingsScreen() {
         ? "heart"
         : "crown";
   const [careTime, setCareTime] = useState<"day" | "full" | null>(null);
+
   const careTimeLabel =
     careTime === "day"
       ? "Día laboral (08:30 – 18:00)"
@@ -1063,18 +1064,20 @@ export default function BookingsScreen() {
               disabled={!canContinue}
               onPress={() => {
                 if (!canContinue) return;
+                if (!selectedPet || !selectedPlan || !careTime) return;
 
                 router.push({
                   pathname: "/confirm",
                   params: {
-                    petName: selectedPet?.name ?? "",
-                    petType: selectedPet?.type ?? "Perro",
-                    plan: selectedPlan.name,
-                    planId,
-                    time: careTimeLabel,
+                    petName: selectedPet.name,
+                    petType: selectedPet.type, // "Perro" | "Gato"
+                    planId: planId, // "bb" | "consientan" | "principe"
+                    planName: selectedPlan.name,
+                    careTime: careTime, // "day" | "full"
+                    careTimeLabel: careTimeLabel,
                     city,
-                    date: formatDateLabel(),
-                    total: moneyUSD(total),
+                    dateLabel: formatDateLabel(),
+                    totalUSD: moneyUSD(total),
                   },
                 });
               }}
