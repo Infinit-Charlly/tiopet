@@ -5,7 +5,7 @@ import { theme } from "../theme/theme";
 type Props = {
   title: string;
   onPress?: () => void;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "danger";
   style?: ViewStyle;
   textStyle?: TextStyle;
   disabled?: boolean;
@@ -20,7 +20,15 @@ export function Button({
   disabled,
 }: Props) {
   const bg =
-    variant === "primary" ? theme.colors.primary : theme.colors.surface2;
+    variant === "primary"
+      ? theme.colors.primary
+      : variant === "danger"
+        ? "rgba(239,68,68,0.20)"
+        : theme.colors.surface2;
+
+  const borderColor =
+    variant === "danger" ? "rgba(239,68,68,0.45)" : theme.colors.line;
+
   const color = disabled
     ? theme.colors.muted
     : variant === "primary"
@@ -37,7 +45,7 @@ export function Button({
           paddingHorizontal: 16,
           borderRadius: theme.radius.lg,
           borderWidth: 1,
-          borderColor: theme.colors.line,
+          borderColor: disabled ? theme.colors.line : borderColor,
           transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
           opacity: disabled ? 0.55 : pressed ? 0.92 : 1,
         },

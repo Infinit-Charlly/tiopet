@@ -1,9 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { ScrollView, Text, View } from "react-native";
 
-import { useBookingsStore } from "../src/store/bookingsStore";
+import { TransportType, useBookingsStore } from "../src/store/bookingsStore";
 import { theme } from "../src/theme/theme";
 import { Button } from "../src/ui/Button";
 import { Card } from "../src/ui/Card";
@@ -25,26 +25,47 @@ function pickEnum<T extends string>(
     ? (v as T)
     : fallback;
 }
+function makeId(prefix = "b") {
+  const t = Date.now().toString(36);
+  const r = Math.random().toString(36).slice(2, 10);
+  return `${prefix}_${t}_${r}`;
+}
+function transportLabel(t?: TransportType) {
+  if (!t) return "No";
+  if (t === "ida") return "Solo ida";
+  if (t === "vuelta") return "Solo vuelta";
+  return "Ida y vuelta";
+}
 
 export default function ConfirmScreen() {
   const router = useRouter();
   const addBooking = useBookingsStore((s) => s.addBooking);
-
   const params = useLocalSearchParams();
 
   const petName = pickString(params.petName, "—");
   const petType = pickEnum<PetType>(params.petType, ["Perro", "Gato"], "Perro");
+
   const planId = pickEnum<PlanId>(
     params.planId,
     ["bb", "consientan", "principe"],
     "bb",
   );
   const planName = pickString(params.planName, "—");
+
   const careTime = pickEnum<CareTime>(params.careTime, ["day", "full"], "day");
   const careTimeLabel = pickString(params.careTimeLabel, "—");
+
   const city = pickString(params.city, "—");
   const dateLabel = pickString(params.dateLabel, "—");
   const totalUSD = pickString(params.totalUSD, "$0.00");
+
+  const transportNeeded =
+    pickString(params.transportNeeded, "false") === "true";
+  const transportType = pickEnum<TransportType>(
+    params.transportType,
+    ["ida", "vuelta", "ida_vuelta"],
+    "ida_vuelta",
+  );
 
   const planIcon = useMemo(() => {
     if (planId === "bb") return "shield-check";
@@ -52,7 +73,6 @@ export default function ConfirmScreen() {
     return "crown";
   }, [planId]);
 
-  // 🔒 anti-doble-confirm (si el usuario toca dos veces o hace back/forward raro)
   const confirmedRef = useRef(false);
 
   const onConfirm = () => {
@@ -60,20 +80,22 @@ export default function ConfirmScreen() {
     confirmedRef.current = true;
 
     addBooking({
+      id: makeId("b"),
       petName,
       petType,
       planId,
       planName,
       careTime,
-      careTimeLabel,
       city,
       dateLabel,
       totalUSD,
       status: "pendiente",
-      createdAt: Date.now(),
+      createdAtISO: new Date().toISOString(),
+      transportNeeded,
+      transportType: transportNeeded ? transportType : undefined,
     });
 
-    router.replace("/(tabs)"); // vuelve a Inicio (MVP)
+    router.replace("/(tabs)");
   };
 
   return (
@@ -95,6 +117,7 @@ export default function ConfirmScreen() {
           >
             Confirmación
           </Text>
+
           <Text
             style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}
           >
@@ -154,6 +177,11 @@ export default function ConfirmScreen() {
               <Row icon="clock-outline" label="Tiempo" value={careTimeLabel} />
               <Row icon="map-marker" label="Ciudad" value={city} />
               <Row icon="calendar" label="Fecha" value={dateLabel} />
+              <Row
+                icon="car"
+                label="Transporte"
+                value={transportNeeded ? transportLabel(transportType) : "No"}
+              />
             </View>
 
             <View
@@ -211,7 +239,7 @@ function Row({
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
       <MaterialCommunityIcons name={icon} size={18} color={theme.colors.warn} />
-      <Text style={{ color: theme.colors.muted, width: 70 }}>{label}:</Text>
+      <Text style={{ color: theme.colors.muted, width: 90 }}>{label}:</Text>
       <Text style={{ color: theme.colors.text, fontWeight: "800", flex: 1 }}>
         {value}
       </Text>

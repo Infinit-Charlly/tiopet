@@ -1,9 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React from "react";
+import { useEffect } from "react";
+import { useBookingsStore } from "../../src/store/bookingsStore";
+import { usePetsStore } from "../../src/store/petsStore";
 import { theme } from "../../src/theme/theme";
 
-export default function TabLayout() {
+export default function RootLayout() {
+  const hydrateBookings = useBookingsStore((s) => s.hydrate);
+  const hydratePets = usePetsStore((s) => s.hydrate);
+
+  useEffect(() => {
+    void hydrateBookings();
+    void hydratePets();
+  }, [hydrateBookings, hydratePets]);
+
   return (
     <Tabs
       screenOptions={{
@@ -19,6 +29,7 @@ export default function TabLayout() {
         tabBarLabelStyle: { fontSize: 12, fontWeight: "700" },
       }}
     >
+      {/* Tabs visibles */}
       <Tabs.Screen
         name="index"
         options={{
@@ -28,6 +39,7 @@ export default function TabLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="bookings"
         options={{
@@ -37,24 +49,7 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="transport"
-        options={{
-          title: "Transporte",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="car" size={size ?? 24} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="shop"
-        options={{
-          title: "Tienda",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bag" size={size ?? 24} color={color} />
-          ),
-        }}
-      />
+
       <Tabs.Screen
         name="pets"
         options={{
@@ -66,12 +61,37 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="more"
+        options={{
+          title: "Más",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="menu" size={size ?? 24} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="profile"
         options={{
           title: "Perfil",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size ?? 24} color={color} />
           ),
+        }}
+      />
+
+      {/* Rutas dentro de (tabs) PERO OCULTAS del tab bar */}
+      <Tabs.Screen
+        name="shop"
+        options={{
+          href: null, // 👈 esto lo saca del tab bar
+        }}
+      />
+
+      <Tabs.Screen
+        name="transport"
+        options={{
+          href: null, // 👈 esto lo saca del tab bar
         }}
       />
     </Tabs>

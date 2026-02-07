@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 
 export type PetType = "Perro" | "Gato";
@@ -17,13 +18,45 @@ export type Pet = {
 
 type State = {
   pets: Pet[];
+  hydrated: boolean;
+
   addPet: (pet: Omit<Pet, "id">) => void;
+
+  hydrate: () => Promise<void>;
+  persist: () => Promise<void>;
+  clearAll: () => Promise<void>;
 };
 
-export const usePetsStore = create<State>((set) => ({
+const STORAGE_KEY = "tiopet_pets_v1";
+const newId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+export const usePetsStore = create<State>((set, get) => ({
   pets: [],
-  addPet: (pet) =>
+  hydrated: false,
+
+  addPet: (pet) => {
     set((state) => ({
-      pets: [{ ...pet, id: String(Date.now()) }, ...state.pets],
-    })),
+      pets: [{ ...pet, id: newId() }, ...state.pets],
+    }));
+    void get().persist();
+  },
+
+  persist: async () => {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(get().pets));
+  },
+
+  hydrate: async () => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const pets = raw ? (JSON.parse(raw) as Pet[]) : [];
+      set({ pets, hydrated: true });
+    } catch {
+      set({ hydrated: true });
+    }
+  },
+
+  clearAll: async () => {
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    set({ pets: [] });
+  },
 }));

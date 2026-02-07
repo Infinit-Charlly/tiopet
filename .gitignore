@@ -41,3 +41,17 @@ app-example
 # generated native folders
 /ios
 /android
+
+# pnpm
+.pnpm-store/
+
+# Expo local
+.expo-shared/
+
+# VS Code
+.vscode/
+
+# logs
+*.log
+
+

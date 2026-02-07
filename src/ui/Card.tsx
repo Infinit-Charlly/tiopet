@@ -4,7 +4,7 @@ import { theme } from "../theme/theme";
 
 type Props = {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: ViewStyle | ViewStyle[];
 };
 
 export function Card({ children, style }: Props) {
@@ -12,13 +12,12 @@ export function Card({ children, style }: Props) {
     <View
       style={[
         {
-          backgroundColor: theme.colors.surface,
-          borderRadius: theme.radius.xl,
           borderWidth: 1,
           borderColor: theme.colors.line,
+          backgroundColor: theme.colors.surface,
+          borderRadius: theme.radius.xl,
           padding: theme.spacing(2),
         },
-        theme.shadow.card,
         style,
       ]}
     >

@@ -1,13 +1,17 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import React from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useBookingsStore } from "../../src/store/bookingsStore";
+import { usePetsStore } from "../../src/store/petsStore";
 import { theme } from "../../src/theme/theme";
+import { Button } from "../../src/ui/Button";
 import { Card } from "../../src/ui/Card";
 import { Screen } from "../../src/ui/Screen";
 
 export default function ProfileScreen() {
   const bookings = useBookingsStore((s) => s.bookings);
+  const clearBookings = useBookingsStore((s) => s.clearAll);
+  const clearPets = usePetsStore((s) => s.clearAll);
+
   const statusMeta = (status: "pendiente" | "confirmada" | "cancelada") => {
     if (status === "confirmada")
       return {
@@ -37,6 +41,13 @@ export default function ProfileScreen() {
     return "crown";
   };
 
+  const transportLabel = (type?: "ida" | "vuelta" | "ida_vuelta") => {
+    if (!type) return "—";
+    if (type === "ida") return "Solo ida";
+    if (type === "vuelta") return "Solo vuelta";
+    return "Ida y vuelta";
+  };
+
   return (
     <Screen>
       <ScrollView>
@@ -47,17 +58,29 @@ export default function ProfileScreen() {
             padding: theme.spacing(2),
           }}
         >
+          {__DEV__ && (
+            <Button
+              title="Reset datos (DEV)"
+              onPress={async () => {
+                await clearBookings();
+                await clearPets();
+              }}
+            />
+          )}
+
           <Text
             style={{
               color: theme.colors.text,
               fontSize: 26,
               fontWeight: "900",
+              marginTop: 8,
             }}
           >
             Perfil
           </Text>
+
           <Text style={{ color: theme.colors.muted, marginTop: 8 }}>
-            Perfil.
+            Tu resumen, tus peluditos… y tus aventuras 🐾
           </Text>
 
           <Card style={{ marginTop: theme.spacing(3) }}>
@@ -72,7 +95,7 @@ export default function ProfileScreen() {
             </Text>
 
             <Text style={{ color: theme.colors.muted, marginTop: 6 }}>
-              Tus últimas reservas confirmadas 🐾
+              Tus últimas reservas 🧾
             </Text>
 
             {bookings.length === 0 ? (
@@ -83,6 +106,17 @@ export default function ProfileScreen() {
               <View style={{ marginTop: 12, gap: 10 }}>
                 {bookings.slice(0, 5).map((b) => {
                   const meta = statusMeta(b.status);
+
+                  const careTimeLabel =
+                    b.careTime === "day"
+                      ? "Día laboral (08:30 – 18:00)"
+                      : "24 horas (Hospedaje)";
+
+                  const showTransport = Boolean(b.transportNeeded);
+                  const transportText = showTransport
+                    ? transportLabel(b.transportType)
+                    : "No necesita";
+
                   return (
                     <View
                       key={b.id}
@@ -156,7 +190,7 @@ export default function ProfileScreen() {
                         </View>
                       </View>
 
-                      {/* Línea 1: plan + icono */}
+                      {/* Plan */}
                       <View
                         style={{
                           flexDirection: "row",
@@ -180,7 +214,7 @@ export default function ProfileScreen() {
                         </Text>
                       </View>
 
-                      {/* Línea 2: tiempo */}
+                      {/* Tiempo */}
                       <Text
                         style={{
                           color: theme.colors.muted,
@@ -188,10 +222,10 @@ export default function ProfileScreen() {
                           lineHeight: 18,
                         }}
                       >
-                        {b.careTimeLabel}
+                        {careTimeLabel}
                       </Text>
 
-                      {/* Línea 3: ciudad + fecha */}
+                      {/* Ciudad + Fecha */}
                       <Text
                         style={{
                           color: theme.colors.muted,
@@ -201,6 +235,35 @@ export default function ProfileScreen() {
                       >
                         {b.city} · {b.dateLabel}
                       </Text>
+
+                      {/* Transporte */}
+                      <View
+                        style={{
+                          marginTop: 8,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name="car"
+                          size={18}
+                          color={theme.colors.warn}
+                        />
+                        <Text
+                          style={{ color: theme.colors.muted, lineHeight: 18 }}
+                        >
+                          Transporte:{" "}
+                          <Text
+                            style={{
+                              color: theme.colors.text,
+                              fontWeight: "800",
+                            }}
+                          >
+                            {transportText}
+                          </Text>
+                        </Text>
+                      </View>
 
                       {/* Total */}
                       <View

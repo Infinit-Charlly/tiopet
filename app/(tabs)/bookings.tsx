@@ -12,6 +12,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+
 import { usePetsStore } from "../../src/store/petsStore";
 import { theme } from "../../src/theme/theme";
 import { Button } from "../../src/ui/Button";
@@ -22,6 +23,8 @@ type City = "Latacunga" | "Quito" | "Porto Viejo";
 type DatePick = "Hoy" | "Mañana" | "Este sábado" | "Otra fecha";
 
 type PlanId = "bb" | "consientan" | "principe";
+type CareTime = "day" | "full";
+type TransportType = "ida" | "vuelta" | "ida_vuelta";
 
 type Plan = {
   id: PlanId;
@@ -29,7 +32,7 @@ type Plan = {
   tagline: string;
   basePrice: number; // USD
   includes: string[];
-  highlight?: string; // texto corto tipo "Más elegido"
+  highlight?: string;
 };
 
 const PLANS: Plan[] = [
@@ -83,6 +86,19 @@ function moneyUSD(value: number) {
     currency: "USD",
     minimumFractionDigits: 2,
   }).format(value);
+}
+
+function addDays(base: Date, days: number) {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function nextSaturday(base: Date) {
+  const d = new Date(base);
+  const day = d.getDay(); // 0=domingo ... 6=sábado
+  const diff = (6 - day + 7) % 7;
+  return addDays(d, diff === 0 ? 7 : diff);
 }
 
 function Pill({
@@ -224,6 +240,7 @@ function PlanCard({
     </Pressable>
   );
 }
+
 function PetCard({
   pet,
   selected,
@@ -361,19 +378,33 @@ function Chip({
 
 export default function BookingsScreen() {
   const pets = usePetsStore((s) => s.pets);
-  const [petId, setPetId] = useState<string | null>(null);
   const router = useRouter();
+
+  const [petId, setPetId] = useState<string | null>(null);
 
   const [city, setCity] = useState<City>("Latacunga");
   const [datePick, setDatePick] = useState<DatePick>("Hoy");
   const [planId, setPlanId] = useState<PlanId>("consientan");
+  const [careTime, setCareTime] = useState<CareTime | null>(null);
+
+  // ✅ Transporte (MVP) — dentro del componente (NO redeclare)
+  const [transportNeeded, setTransportNeeded] = useState(false);
+  const [transportType, setTransportType] =
+    useState<TransportType>("ida_vuelta");
+
+  // Add-on opcional (MVP): revisión vet
+  const [vetCheck, setVetCheck] = useState(false);
+
+  // fecha picker
+  const [customDate, setCustomDate] = useState<Date | null>(new Date());
+  const [showPicker, setShowPicker] = useState(false);
+
   const planIcon =
     planId === "bb"
       ? "shield-check"
       : planId === "consientan"
         ? "heart"
         : "crown";
-  const [careTime, setCareTime] = useState<"day" | "full" | null>(null);
 
   const careTimeLabel =
     careTime === "day"
@@ -381,43 +412,6 @@ export default function BookingsScreen() {
       : careTime === "full"
         ? "24 horas (Hospedaje)"
         : "— (elige uno)";
-
-  // Add-on opcional (MVP): revisión vet
-  const [vetCheck, setVetCheck] = useState(false);
-  const [brush, setBrush] = useState(false);
-  const [fullGroom, setFullGroom] = useState(false);
-  const [customDate, setCustomDate] = useState<Date | null>(null);
-  const [showPicker, setShowPicker] = useState(false);
-
-  const dateLabel = customDate
-    ? new Intl.DateTimeFormat("es-EC", {
-        weekday: "short",
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }).format(customDate)
-    : datePick;
-
-  const selectedPlan = useMemo(
-    () => PLANS.find((p) => p.id === planId) ?? PLANS[0],
-    [planId],
-  );
-  const selectedPet = useMemo(
-    () => pets.find((p) => p.id === petId) ?? null,
-    [pets, petId],
-  );
-  const canContinue = Boolean(selectedPet) && Boolean(careTime);
-
-  const total = useMemo(() => {
-    // Ajuste por ciudad (mock)
-    const cityAdj = city === "Quito" ? 1 : city === "Porto Viejo" ? 1 : 0;
-
-    // Add-on vet (mock)
-    const vet = vetCheck ? 8 : 0;
-
-    return selectedPlan.basePrice + cityAdj + vet;
-  }, [selectedPlan, city, vetCheck]);
-  const today = new Date();
 
   function formatDateLabel() {
     const d = customDate ?? new Date();
@@ -433,23 +427,37 @@ export default function BookingsScreen() {
     if (datePick === "Hoy") return `Hoy · ${formatted}`;
     if (datePick === "Mañana") return `Mañana · ${formatted}`;
     if (datePick === "Este sábado") return `Este sábado · ${formatted}`;
-
-    // Otra fecha
     return `Otra fecha · ${formatted}`;
   }
 
-  function addDays(base: Date, days: number) {
-    const d = new Date(base);
-    d.setDate(d.getDate() + days);
-    return d;
-  }
+  const selectedPlan = useMemo(
+    () => PLANS.find((p) => p.id === planId) ?? PLANS[0],
+    [planId],
+  );
 
-  function nextSaturday(base: Date) {
-    const d = new Date(base);
-    const day = d.getDay(); // 0=domingo ... 6=sábado
-    const diff = (6 - day + 7) % 7;
-    return addDays(d, diff === 0 ? 7 : diff);
-  }
+  const selectedPet = useMemo(
+    () => pets.find((p) => p.id === petId) ?? null,
+    [pets, petId],
+  );
+
+  const canContinue = Boolean(selectedPet) && Boolean(careTime);
+
+  const total = useMemo(() => {
+    // Ajuste por ciudad (mock)
+    const cityAdj = city === "Quito" ? 1 : city === "Porto Viejo" ? 1 : 0;
+
+    // Add-on vet (mock)
+    const vet = vetCheck ? 8 : 0;
+
+    // Transporte (mock): solo para MVP, luego lo hacemos pro
+    const transportAdj = transportNeeded
+      ? transportType === "ida_vuelta"
+        ? 4
+        : 2
+      : 0;
+
+    return selectedPlan.basePrice + cityAdj + vet + transportAdj;
+  }, [selectedPlan, city, vetCheck, transportNeeded, transportType]);
 
   return (
     <Screen>
@@ -463,6 +471,7 @@ export default function BookingsScreen() {
           Elige un plan y deja que cuidemos a tu peludito como se merece.
         </Text>
 
+        {/* Peludito */}
         <Card style={{ marginTop: theme.spacing(3) }}>
           <Text
             style={{
@@ -633,6 +642,7 @@ export default function BookingsScreen() {
           )}
         </Card>
 
+        {/* Plan */}
         <Card style={{ marginTop: theme.spacing(3) }}>
           <Text
             style={{
@@ -655,6 +665,8 @@ export default function BookingsScreen() {
             ))}
           </View>
         </Card>
+
+        {/* Tiempo */}
         <Card style={{ marginTop: theme.spacing(3) }}>
           <Text
             style={{
@@ -667,16 +679,11 @@ export default function BookingsScreen() {
           </Text>
 
           <Text
-            style={{
-              color: theme.colors.muted,
-              marginTop: 6,
-              lineHeight: 18,
-            }}
+            style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}
           >
             Elige cuánto tiempo cuidamos a tu peludito.
           </Text>
 
-          {/* OPCIÓN DÍA */}
           <Pressable
             onPress={() => setCareTime("day")}
             style={{
@@ -700,7 +707,6 @@ export default function BookingsScreen() {
             </Text>
           </Pressable>
 
-          {/* OPCIÓN 24H */}
           <Pressable
             onPress={() => setCareTime("full")}
             style={{
@@ -725,6 +731,68 @@ export default function BookingsScreen() {
           </Pressable>
         </Card>
 
+        {/* Transporte MVP */}
+        <Card style={{ marginTop: theme.spacing(2) }}>
+          <Text
+            style={{
+              color: theme.colors.text,
+              fontSize: 16,
+              fontWeight: "800",
+            }}
+          >
+            🚗 Transporte (MVP)
+          </Text>
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginTop: 12,
+            }}
+          >
+            <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
+              ¿Necesitas transporte?
+            </Text>
+            <Switch
+              value={transportNeeded}
+              onValueChange={setTransportNeeded}
+            />
+          </View>
+
+          {transportNeeded ? (
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 10,
+                marginTop: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              <Pill
+                label="Solo ida"
+                active={transportType === "ida"}
+                onPress={() => setTransportType("ida")}
+              />
+              <Pill
+                label="Solo vuelta"
+                active={transportType === "vuelta"}
+                onPress={() => setTransportType("vuelta")}
+              />
+              <Pill
+                label="Ida y vuelta"
+                active={transportType === "ida_vuelta"}
+                onPress={() => setTransportType("ida_vuelta")}
+              />
+            </View>
+          ) : null}
+
+          <Text style={{ color: theme.colors.muted, marginTop: 10 }}>
+            * Luego lo hacemos pro con horarios + dirección + precio.
+          </Text>
+        </Card>
+
+        {/* Ciudad */}
         <Card style={{ marginTop: theme.spacing(2) }}>
           <Text
             style={{
@@ -735,6 +803,7 @@ export default function BookingsScreen() {
           >
             Ciudad
           </Text>
+
           <View
             style={{
               flexDirection: "row",
@@ -761,6 +830,7 @@ export default function BookingsScreen() {
           </View>
         </Card>
 
+        {/* Fecha */}
         <Card style={{ marginTop: theme.spacing(2) }}>
           <Text
             style={{
@@ -771,6 +841,7 @@ export default function BookingsScreen() {
           >
             Fecha
           </Text>
+
           <View
             style={{
               flexDirection: "row",
@@ -785,7 +856,6 @@ export default function BookingsScreen() {
               onPress={() => {
                 setDatePick("Hoy");
                 setCustomDate(new Date());
-                setShowPicker(false);
               }}
             />
             <Pill
@@ -794,7 +864,6 @@ export default function BookingsScreen() {
               onPress={() => {
                 setDatePick("Mañana");
                 setCustomDate(addDays(new Date(), 1));
-                setShowPicker(false);
               }}
             />
             <Pill
@@ -803,99 +872,23 @@ export default function BookingsScreen() {
               onPress={() => {
                 setDatePick("Este sábado");
                 setCustomDate(nextSaturday(new Date()));
-                setShowPicker(false);
               }}
             />
+
             <Pressable
-              onPress={() => setShowPicker(true)}
+              onPress={() => {
+                setDatePick("Otra fecha");
+                setShowPicker(true);
+              }}
               style={{
-                marginTop: 12,
                 borderRadius: theme.radius.xl,
                 borderWidth: 1,
                 borderColor: theme.colors.line,
                 backgroundColor: theme.colors.surface2,
                 padding: theme.spacing(2),
+                flexGrow: 1,
               }}
             >
-              <Modal visible={showPicker} transparent animationType="slide">
-                <TouchableWithoutFeedback onPress={() => setShowPicker(false)}>
-                  <View
-                    style={{
-                      flex: 1,
-                      backgroundColor: "rgba(0,0,0,0.74)",
-                      padding: theme.spacing(2),
-                      justifyContent: "flex-end",
-                      paddingBottom: 90, // 👈 SUBE el sheet (aprox 15–20%)
-                    }}
-                  >
-                    <TouchableWithoutFeedback>
-                      <View
-                        style={{
-                          backgroundColor: theme.colors.surface,
-                          borderRadius: theme.radius.xl,
-                          borderWidth: 1,
-                          borderColor: theme.colors.line,
-                          padding: theme.spacing(2),
-                        }}
-                      >
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            marginBottom: 10,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              color: theme.colors.text,
-                              fontWeight: "900",
-                              fontSize: 16,
-                            }}
-                          >
-                            Elegir fecha
-                          </Text>
-
-                          <Pressable
-                            onPress={() => setShowPicker(false)}
-                            style={{
-                              paddingVertical: 8,
-                              paddingHorizontal: 12,
-                              borderRadius: 999,
-                              borderWidth: 1,
-                              borderColor: theme.colors.line,
-                              backgroundColor: theme.colors.surface2,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: theme.colors.text,
-                                fontWeight: "800",
-                              }}
-                            >
-                              Listo
-                            </Text>
-                          </Pressable>
-                        </View>
-
-                        <DateTimePicker
-                          value={customDate ?? new Date()}
-                          mode="date"
-                          display={Platform.OS === "ios" ? "inline" : "default"}
-                          onChange={(_, selected) => {
-                            if (selected) {
-                              setCustomDate(selected);
-                              setDatePick("Otra fecha");
-                            }
-                            if (Platform.OS !== "ios") setShowPicker(false);
-                          }}
-                        />
-                      </View>
-                    </TouchableWithoutFeedback>
-                  </View>
-                </TouchableWithoutFeedback>
-              </Modal>
-
               <Text style={{ color: theme.colors.text, fontWeight: "900" }}>
                 📅 Elegir otra fecha
               </Text>
@@ -907,8 +900,85 @@ export default function BookingsScreen() {
               </Text>
             </Pressable>
           </View>
+
+          <Modal visible={showPicker} transparent animationType="slide">
+            <TouchableWithoutFeedback onPress={() => setShowPicker(false)}>
+              <View
+                style={{
+                  flex: 1,
+                  backgroundColor: "rgba(0,0,0,0.74)",
+                  padding: theme.spacing(2),
+                  justifyContent: "flex-end",
+                  paddingBottom: 90,
+                }}
+              >
+                <TouchableWithoutFeedback>
+                  <View
+                    style={{
+                      backgroundColor: theme.colors.surface,
+                      borderRadius: theme.radius.xl,
+                      borderWidth: 1,
+                      borderColor: theme.colors.line,
+                      padding: theme.spacing(2),
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginBottom: 10,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: theme.colors.text,
+                          fontWeight: "900",
+                          fontSize: 16,
+                        }}
+                      >
+                        Elegir fecha
+                      </Text>
+
+                      <Pressable
+                        onPress={() => setShowPicker(false)}
+                        style={{
+                          paddingVertical: 8,
+                          paddingHorizontal: 12,
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: theme.colors.line,
+                          backgroundColor: theme.colors.surface2,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: theme.colors.text,
+                            fontWeight: "800",
+                          }}
+                        >
+                          Listo
+                        </Text>
+                      </Pressable>
+                    </View>
+
+                    <DateTimePicker
+                      value={customDate ?? new Date()}
+                      mode="date"
+                      display={Platform.OS === "ios" ? "inline" : "default"}
+                      onChange={(_, selected) => {
+                        if (selected) setCustomDate(selected);
+                        if (Platform.OS !== "ios") setShowPicker(false);
+                      }}
+                    />
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
         </Card>
 
+        {/* Add-ons */}
         <Card style={{ marginTop: theme.spacing(2) }}>
           <Text
             style={{
@@ -952,6 +1022,7 @@ export default function BookingsScreen() {
           </Text>
         </Card>
 
+        {/* Resumen */}
         <Card style={{ marginTop: theme.spacing(2) }}>
           <Text
             style={{
@@ -963,7 +1034,6 @@ export default function BookingsScreen() {
             Resumen
           </Text>
 
-          {/* Header: Peludito + icon */}
           <View
             style={{
               marginTop: 12,
@@ -1013,7 +1083,6 @@ export default function BookingsScreen() {
             </View>
           </View>
 
-          {/* Chips */}
           <View style={{ marginTop: 14, gap: 10 }}>
             <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
               <Chip
@@ -1021,7 +1090,6 @@ export default function BookingsScreen() {
                 label="Plan"
                 value={selectedPlan.name}
               />
-
               <Chip icon="clock-outline" label="Tiempo" value={careTimeLabel} />
             </View>
 
@@ -1029,9 +1097,24 @@ export default function BookingsScreen() {
               <Chip icon="map-marker" label="Ciudad" value={city} />
               <Chip icon="calendar" label="Fecha" value={formatDateLabel()} />
             </View>
+
+            <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
+              <Chip
+                icon="car"
+                label="Transporte"
+                value={
+                  transportNeeded
+                    ? transportType === "ida"
+                      ? "Solo ida"
+                      : transportType === "vuelta"
+                        ? "Solo vuelta"
+                        : "Ida y vuelta"
+                    : "No"
+                }
+              />
+            </View>
           </View>
 
-          {/* Total */}
           <View
             style={{
               marginTop: 16,
@@ -1057,7 +1140,6 @@ export default function BookingsScreen() {
             </Text>
           </View>
 
-          {/* Continuar */}
           <View style={{ marginTop: 14 }}>
             <Button
               title={canContinue ? "Continuar" : "Elige peludito + tiempo 🐾"}
@@ -1070,14 +1152,17 @@ export default function BookingsScreen() {
                   pathname: "/confirm",
                   params: {
                     petName: selectedPet.name,
-                    petType: selectedPet.type, // "Perro" | "Gato"
-                    planId: planId, // "bb" | "consientan" | "principe"
+                    petType: selectedPet.type,
+                    planId,
                     planName: selectedPlan.name,
-                    careTime: careTime, // "day" | "full"
-                    careTimeLabel: careTimeLabel,
+                    careTime,
+                    careTimeLabel,
                     city,
                     dateLabel: formatDateLabel(),
                     totalUSD: moneyUSD(total),
+
+                    transportNeeded: String(transportNeeded),
+                    transportType,
                   },
                 });
               }}
