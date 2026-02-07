@@ -54,4 +54,8 @@ app-example
 # logs
 *.log
 
+# package
+package-lock.json
+
+
 
