@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView, Text, View } from "react-native";
 import { useBookingsStore } from "../../src/store/bookingsStore";
 import { usePetsStore } from "../../src/store/petsStore";
 import { theme } from "../../src/theme/theme";
@@ -9,29 +9,36 @@ import { Screen } from "../../src/ui/Screen";
 
 export default function ProfileScreen() {
   const bookings = useBookingsStore((s) => s.bookings);
+
   const clearBookings = useBookingsStore((s) => s.clearAll);
   const clearPets = usePetsStore((s) => s.clearAll);
+
+  const confirmBooking = useBookingsStore((s) => s.confirmBooking);
+  const cancelBooking = useBookingsStore((s) => s.cancelBooking);
 
   const statusMeta = (status: "pendiente" | "confirmada" | "cancelada") => {
     if (status === "confirmada")
       return {
         label: "Confirmada",
         icon: "check-decagram",
-        bg: "rgba(34,197,94,0.12)",
-        border: "rgba(34,197,94,0.28)",
+        chipBg: "rgba(34,197,94,0.12)",
+        chipBorder: "rgba(34,197,94,0.32)",
+        cardBorder: "rgba(34,197,94,0.55)",
       };
     if (status === "cancelada")
       return {
         label: "Cancelada",
         icon: "close-circle",
-        bg: "rgba(239,68,68,0.10)",
-        border: "rgba(239,68,68,0.28)",
+        chipBg: "rgba(239,68,68,0.10)",
+        chipBorder: "rgba(239,68,68,0.32)",
+        cardBorder: "rgba(239,68,68,0.55)",
       };
     return {
       label: "Pendiente",
       icon: "clock-outline",
-      bg: "rgba(255,183,77,0.12)",
-      border: "rgba(255,183,77,0.28)",
+      chipBg: "rgba(255,183,77,0.12)",
+      chipBorder: "rgba(255,183,77,0.28)",
+      cardBorder: theme.colors.line,
     };
   };
 
@@ -46,6 +53,41 @@ export default function ProfileScreen() {
     if (type === "ida") return "Solo ida";
     if (type === "vuelta") return "Solo vuelta";
     return "Ida y vuelta";
+  };
+
+  const askCancel = (id: string) => {
+    Alert.alert(
+      "Cancelar reserva",
+      "¿Seguro que deseas cancelar esta reserva?\n\nEsta acción no se puede deshacer.",
+      [
+        { text: "Volver", style: "cancel" },
+        {
+          text: "Sí, cancelar",
+          style: "destructive",
+          onPress: () => {
+            cancelBooking(id);
+            Alert.alert("Listo", "Reserva cancelada ❌");
+          },
+        },
+      ],
+    );
+  };
+
+  const askConfirm = (id: string) => {
+    Alert.alert(
+      "Confirmar reserva",
+      "¿Confirmamos esta reserva?\n\nPasará a estado “Confirmada”.",
+      [
+        { text: "Volver", style: "cancel" },
+        {
+          text: "Sí, confirmar",
+          onPress: () => {
+            confirmBooking(id);
+            Alert.alert("Perfecto", "Reserva confirmada ✅");
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -117,12 +159,14 @@ export default function ProfileScreen() {
                     ? transportLabel(b.transportType)
                     : "No necesita";
 
+                  const canAct = b.status === "pendiente";
+
                   return (
                     <View
                       key={b.id}
                       style={{
                         borderWidth: 1,
-                        borderColor: theme.colors.line,
+                        borderColor: meta.cardBorder,
                         backgroundColor: theme.colors.surface2,
                         borderRadius: theme.radius.xl,
                         padding: theme.spacing(2),
@@ -168,9 +212,9 @@ export default function ProfileScreen() {
                             paddingHorizontal: 10,
                             paddingVertical: 6,
                             borderRadius: 999,
-                            backgroundColor: meta.bg,
+                            backgroundColor: meta.chipBg,
                             borderWidth: 1,
-                            borderColor: meta.border,
+                            borderColor: meta.chipBorder,
                           }}
                         >
                           <MaterialCommunityIcons
@@ -295,6 +339,22 @@ export default function ProfileScreen() {
                           {b.totalUSD}
                         </Text>
                       </View>
+
+                      {/* Acciones */}
+                      {canAct && (
+                        <View style={{ marginTop: 12, gap: 10 }}>
+                          <Button
+                            title="Confirmar reserva"
+                            variant="success"
+                            onPress={() => askConfirm(b.id)}
+                          />
+                          <Button
+                            title="Cancelar reserva"
+                            variant="danger"
+                            onPress={() => askCancel(b.id)}
+                          />
+                        </View>
+                      )}
                     </View>
                   );
                 })}

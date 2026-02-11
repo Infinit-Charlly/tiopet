@@ -25,6 +25,7 @@ type BookingsState = {
   hydrated: boolean;
 
   addBooking: (b: Booking) => void;
+  confirmBooking: (id: string) => void;
   cancelBooking: (id: string) => void;
 
   hydrate: () => Promise<void>;
@@ -67,6 +68,17 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
     const safe = ids.has(b.id) ? { ...b, id: makeId("b") } : b;
 
     set((s) => ({ bookings: [safe, ...s.bookings] }));
+    void get().persist();
+  },
+
+  confirmBooking: (id) => {
+    set((s) => ({
+      bookings: s.bookings.map((b) =>
+        b.id === id && b.status === "pendiente"
+          ? { ...b, status: "confirmada" }
+          : b,
+      ),
+    }));
     void get().persist();
   },
 

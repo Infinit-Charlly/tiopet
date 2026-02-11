@@ -1,11 +1,10 @@
-import React from "react";
 import { Pressable, Text, TextStyle, ViewStyle } from "react-native";
 import { theme } from "../theme/theme";
 
 type Props = {
   title: string;
   onPress?: () => void;
-  variant?: "primary" | "secondary" | "danger";
+  variant?: "primary" | "secondary" | "danger" | "success";
   style?: ViewStyle;
   textStyle?: TextStyle;
   disabled?: boolean;
@@ -22,12 +21,18 @@ export function Button({
   const bg =
     variant === "primary"
       ? theme.colors.primary
-      : variant === "danger"
-        ? "rgba(239,68,68,0.20)"
-        : theme.colors.surface2;
+      : variant === "success"
+        ? "rgba(34,197,94,0.22)" // 🟢 verde confirmación
+        : variant === "danger"
+          ? "rgba(239,68,68,0.20)" // 🔴 rojo cancelar
+          : theme.colors.surface2;
 
   const borderColor =
-    variant === "danger" ? "rgba(239,68,68,0.45)" : theme.colors.line;
+    variant === "success"
+      ? "rgba(34,197,94,0.55)"
+      : variant === "danger"
+        ? "rgba(239,68,68,0.45)"
+        : theme.colors.line;
 
   const color = disabled
     ? theme.colors.muted
