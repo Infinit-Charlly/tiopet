@@ -29,7 +29,7 @@ export default function RootLayout() {
         tabBarLabelStyle: { fontSize: 12, fontWeight: "700" },
       }}
     >
-      {/* Tabs visibles */}
+      {/* Inicio */}
       <Tabs.Screen
         name="index"
         options={{
@@ -40,16 +40,29 @@ export default function RootLayout() {
         }}
       />
 
+      {/* Wizard: Nueva reserva */}
       <Tabs.Screen
         name="bookings"
         options={{
-          title: "Reservas",
+          title: "Reservar",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" size={size ?? 24} color={color} />
+            <Ionicons name="calendar-outline" size={size ?? 24} color={color} />
           ),
         }}
       />
 
+      {/* Historial: Mis reservas */}
+      <Tabs.Screen
+        name="history"
+        options={{
+          title: "Historial",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="time" size={size ?? 24} color={color} />
+          ),
+        }}
+      />
+
+      {/* Peluditos */}
       <Tabs.Screen
         name="pets"
         options={{
@@ -60,38 +73,36 @@ export default function RootLayout() {
         }}
       />
 
-      <Tabs.Screen
-        name="more"
-        options={{
-          title: "Más",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="menu" size={size ?? 24} color={color} />
-          ),
-        }}
-      />
-
+      {/* Cuenta */}
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Perfil",
+          title: "Cuenta",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size ?? 24} color={color} />
           ),
         }}
       />
 
-      {/* Rutas dentro de (tabs) PERO OCULTAS del tab bar */}
+      {/* Ocultas */}
+      <Tabs.Screen
+        name="more"
+        options={{
+          href: null,
+        }}
+      />
+
       <Tabs.Screen
         name="shop"
         options={{
-          href: null, // 👈 esto lo saca del tab bar
+          href: null,
         }}
       />
 
       <Tabs.Screen
         name="transport"
         options={{
-          href: null, // 👈 esto lo saca del tab bar
+          href: null,
         }}
       />
     </Tabs>

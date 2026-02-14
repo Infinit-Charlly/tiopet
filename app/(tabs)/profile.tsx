@@ -1,5 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Alert, ScrollView, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import React from "react";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { useBookingsStore } from "../../src/store/bookingsStore";
 import { usePetsStore } from "../../src/store/petsStore";
 import { theme } from "../../src/theme/theme";
@@ -7,125 +9,140 @@ import { Button } from "../../src/ui/Button";
 import { Card } from "../../src/ui/Card";
 import { Screen } from "../../src/ui/Screen";
 
+function MenuRow({
+  icon,
+  title,
+  subtitle,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  title: string;
+  subtitle?: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        borderRadius: theme.radius.xl,
+        borderWidth: 1,
+        borderColor: theme.colors.line,
+        backgroundColor: theme.colors.surface2,
+        padding: theme.spacing(2),
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <View
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 14,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: theme.colors.surface,
+            borderWidth: 1,
+            borderColor: theme.colors.line,
+          }}
+        >
+          <MaterialCommunityIcons
+            name={icon}
+            size={22}
+            color={theme.colors.warn}
+          />
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              color: theme.colors.text,
+              fontWeight: "900",
+              fontSize: 16,
+            }}
+          >
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text style={{ color: theme.colors.muted, marginTop: 4 }}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+
+        <MaterialCommunityIcons
+          name="chevron-right"
+          size={22}
+          color={theme.colors.muted}
+        />
+      </View>
+    </Pressable>
+  );
+}
+
 export default function ProfileScreen() {
-  const bookings = useBookingsStore((s) => s.bookings);
+  const router = useRouter();
+
+  const bookingsCount = useBookingsStore((s) => s.bookings.length);
+  const petsCount = usePetsStore((s) => s.pets.length);
 
   const clearBookings = useBookingsStore((s) => s.clearAll);
   const clearPets = usePetsStore((s) => s.clearAll);
 
-  const confirmBooking = useBookingsStore((s) => s.confirmBooking);
-  const cancelBooking = useBookingsStore((s) => s.cancelBooking);
-
-  const statusMeta = (status: "pendiente" | "confirmada" | "cancelada") => {
-    if (status === "confirmada")
-      return {
-        label: "Confirmada",
-        icon: "check-decagram",
-        chipBg: "rgba(34,197,94,0.12)",
-        chipBorder: "rgba(34,197,94,0.32)",
-        cardBorder: "rgba(34,197,94,0.55)",
-      };
-    if (status === "cancelada")
-      return {
-        label: "Cancelada",
-        icon: "close-circle",
-        chipBg: "rgba(239,68,68,0.10)",
-        chipBorder: "rgba(239,68,68,0.32)",
-        cardBorder: "rgba(239,68,68,0.55)",
-      };
-    return {
-      label: "Pendiente",
-      icon: "clock-outline",
-      chipBg: "rgba(255,183,77,0.12)",
-      chipBorder: "rgba(255,183,77,0.28)",
-      cardBorder: theme.colors.line,
-    };
-  };
-
-  const planIcon = (planId: "bb" | "consientan" | "principe") => {
-    if (planId === "bb") return "shield-check";
-    if (planId === "consientan") return "heart";
-    return "crown";
-  };
-
-  const transportLabel = (type?: "ida" | "vuelta" | "ida_vuelta") => {
-    if (!type) return "—";
-    if (type === "ida") return "Solo ida";
-    if (type === "vuelta") return "Solo vuelta";
-    return "Ida y vuelta";
-  };
-
-  const askCancel = (id: string) => {
-    Alert.alert(
-      "Cancelar reserva",
-      "¿Seguro que deseas cancelar esta reserva?\n\nEsta acción no se puede deshacer.",
-      [
-        { text: "Volver", style: "cancel" },
-        {
-          text: "Sí, cancelar",
-          style: "destructive",
-          onPress: () => {
-            cancelBooking(id);
-            Alert.alert("Listo", "Reserva cancelada ❌");
-          },
-        },
-      ],
-    );
-  };
-
-  const askConfirm = (id: string) => {
-    Alert.alert(
-      "Confirmar reserva",
-      "¿Confirmamos esta reserva?\n\nPasará a estado “Confirmada”.",
-      [
-        { text: "Volver", style: "cancel" },
-        {
-          text: "Sí, confirmar",
-          onPress: () => {
-            confirmBooking(id);
-            Alert.alert("Perfecto", "Reserva confirmada ✅");
-          },
-        },
-      ],
-    );
-  };
-
   return (
     <Screen>
       <ScrollView>
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: theme.colors.bg,
-            padding: theme.spacing(2),
-          }}
+        <Text
+          style={{ color: theme.colors.text, fontSize: 28, fontWeight: "900" }}
         >
-          {__DEV__ && (
-            <Button
-              title="Reset datos (DEV)"
-              onPress={async () => {
-                await clearBookings();
-                await clearPets();
-              }}
-            />
-          )}
+          Cuenta
+        </Text>
+        <Text style={{ color: theme.colors.muted, marginTop: 6 }}>
+          Tu espacio: datos, accesos y configuración ⚙️
+        </Text>
 
+        <Card style={{ marginTop: theme.spacing(3) }}>
           <Text
             style={{
               color: theme.colors.text,
-              fontSize: 26,
+              fontSize: 16,
               fontWeight: "900",
-              marginTop: 8,
             }}
           >
-            Perfil
+            Accesos rápidos
           </Text>
 
-          <Text style={{ color: theme.colors.muted, marginTop: 8 }}>
-            Tu resumen, tus peluditos… y tus aventuras 🐾
-          </Text>
+          <View style={{ marginTop: 12, gap: 10 }}>
+            <MenuRow
+              icon="receipt-text"
+              title="Mis reservas"
+              subtitle={`${bookingsCount} en total`}
+              onPress={() => router.push("/(tabs)/history")}
+            />
 
-          <Card style={{ marginTop: theme.spacing(3) }}>
+            <MenuRow
+              icon="paw"
+              title="Mis peluditos"
+              subtitle={`${petsCount} registrados`}
+              onPress={() => router.push("/(tabs)/pets")}
+            />
+
+            <MenuRow
+              icon="map-marker"
+              title="Direcciones"
+              subtitle="Próximamente (para transporte pro)"
+              onPress={() => {}}
+            />
+
+            <MenuRow
+              icon="shield-account"
+              title="Iniciar sesión"
+              subtitle="Próximamente (Apple / Google / WhatsApp)"
+              onPress={() => {}}
+            />
+          </View>
+        </Card>
+
+        {__DEV__ && (
+          <Card style={{ marginTop: theme.spacing(2) }}>
             <Text
               style={{
                 color: theme.colors.text,
@@ -133,235 +150,26 @@ export default function ProfileScreen() {
                 fontWeight: "900",
               }}
             >
-              Mis reservas
+              DEV
             </Text>
-
             <Text style={{ color: theme.colors.muted, marginTop: 6 }}>
-              Tus últimas reservas 🧾
+              Reseteo de datos locales (solo desarrollo).
             </Text>
 
-            {bookings.length === 0 ? (
-              <Text style={{ color: theme.colors.muted, marginTop: 12 }}>
-                Aún no tienes reservas. Haz tu primera reserva y vuelve aquí 😄
-              </Text>
-            ) : (
-              <View style={{ marginTop: 12, gap: 10 }}>
-                {bookings.slice(0, 5).map((b) => {
-                  const meta = statusMeta(b.status);
-
-                  const careTimeLabel =
-                    b.careTime === "day"
-                      ? "Día laboral (08:30 – 18:00)"
-                      : "24 horas (Hospedaje)";
-
-                  const showTransport = Boolean(b.transportNeeded);
-                  const transportText = showTransport
-                    ? transportLabel(b.transportType)
-                    : "No necesita";
-
-                  const canAct = b.status === "pendiente";
-
-                  return (
-                    <View
-                      key={b.id}
-                      style={{
-                        borderWidth: 1,
-                        borderColor: meta.cardBorder,
-                        backgroundColor: theme.colors.surface2,
-                        borderRadius: theme.radius.xl,
-                        padding: theme.spacing(2),
-                      }}
-                    >
-                      {/* Header: mascota + estado */}
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 10,
-                          }}
-                        >
-                          <MaterialCommunityIcons
-                            name={b.petType === "Perro" ? "dog" : "cat"}
-                            size={20}
-                            color={theme.colors.warn}
-                          />
-                          <Text
-                            style={{
-                              color: theme.colors.text,
-                              fontWeight: "900",
-                              fontSize: 16,
-                            }}
-                          >
-                            {b.petName}
-                          </Text>
-                        </View>
-
-                        {/* Chip estado */}
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 6,
-                            paddingHorizontal: 10,
-                            paddingVertical: 6,
-                            borderRadius: 999,
-                            backgroundColor: meta.chipBg,
-                            borderWidth: 1,
-                            borderColor: meta.chipBorder,
-                          }}
-                        >
-                          <MaterialCommunityIcons
-                            name={meta.icon as any}
-                            size={16}
-                            color={theme.colors.warn}
-                          />
-                          <Text
-                            style={{
-                              color: theme.colors.text,
-                              fontWeight: "800",
-                              fontSize: 12,
-                            }}
-                          >
-                            {meta.label}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Plan */}
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                          marginTop: 10,
-                        }}
-                      >
-                        <MaterialCommunityIcons
-                          name={planIcon(b.planId) as any}
-                          size={18}
-                          color={theme.colors.warn}
-                        />
-                        <Text
-                          style={{
-                            color: theme.colors.text,
-                            fontWeight: "800",
-                          }}
-                        >
-                          {b.planName}
-                        </Text>
-                      </View>
-
-                      {/* Tiempo */}
-                      <Text
-                        style={{
-                          color: theme.colors.muted,
-                          marginTop: 6,
-                          lineHeight: 18,
-                        }}
-                      >
-                        {careTimeLabel}
-                      </Text>
-
-                      {/* Ciudad + Fecha */}
-                      <Text
-                        style={{
-                          color: theme.colors.muted,
-                          marginTop: 6,
-                          lineHeight: 18,
-                        }}
-                      >
-                        {b.city} · {b.dateLabel}
-                      </Text>
-
-                      {/* Transporte */}
-                      <View
-                        style={{
-                          marginTop: 8,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <MaterialCommunityIcons
-                          name="car"
-                          size={18}
-                          color={theme.colors.warn}
-                        />
-                        <Text
-                          style={{ color: theme.colors.muted, lineHeight: 18 }}
-                        >
-                          Transporte:{" "}
-                          <Text
-                            style={{
-                              color: theme.colors.text,
-                              fontWeight: "800",
-                            }}
-                          >
-                            {transportText}
-                          </Text>
-                        </Text>
-                      </View>
-
-                      {/* Total */}
-                      <View
-                        style={{
-                          marginTop: 10,
-                          paddingTop: 10,
-                          borderTopWidth: 1,
-                          borderTopColor: theme.colors.line,
-                          flexDirection: "row",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: theme.colors.muted,
-                            fontWeight: "800",
-                          }}
-                        >
-                          Total
-                        </Text>
-                        <Text
-                          style={{
-                            color: theme.colors.text,
-                            fontWeight: "900",
-                            fontSize: 16,
-                          }}
-                        >
-                          {b.totalUSD}
-                        </Text>
-                      </View>
-
-                      {/* Acciones */}
-                      {canAct && (
-                        <View style={{ marginTop: 12, gap: 10 }}>
-                          <Button
-                            title="Confirmar reserva"
-                            variant="success"
-                            onPress={() => askConfirm(b.id)}
-                          />
-                          <Button
-                            title="Cancelar reserva"
-                            variant="danger"
-                            onPress={() => askCancel(b.id)}
-                          />
-                        </View>
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-            )}
+            <View style={{ marginTop: 12 }}>
+              <Button
+                title="Reset datos (DEV)"
+                variant="danger"
+                onPress={async () => {
+                  await clearBookings();
+                  await clearPets();
+                }}
+              />
+            </View>
           </Card>
-        </View>
+        )}
+
+        <View style={{ height: 22 }} />
       </ScrollView>
     </Screen>
   );

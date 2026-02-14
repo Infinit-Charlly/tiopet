@@ -22,9 +22,9 @@ export function Button({
     variant === "primary"
       ? theme.colors.primary
       : variant === "success"
-        ? "rgba(34,197,94,0.22)" // 🟢 verde confirmación
+        ? "rgba(34,197,94,0.22)"
         : variant === "danger"
-          ? "rgba(239,68,68,0.20)" // 🔴 rojo cancelar
+          ? "rgba(239,68,68,0.20)"
           : theme.colors.surface2;
 
   const borderColor =

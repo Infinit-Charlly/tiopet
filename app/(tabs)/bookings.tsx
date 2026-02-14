@@ -105,10 +105,14 @@ function Pill({
   label,
   active,
   onPress,
+  accentBorder,
+  accentBg,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  accentBorder: string;
+  accentBg: string;
 }) {
   return (
     <Pressable
@@ -118,10 +122,8 @@ function Pill({
         paddingHorizontal: 14,
         borderRadius: 999,
         borderWidth: 1,
-        borderColor: active ? "rgba(87,215,255,0.55)" : theme.colors.line,
-        backgroundColor: active
-          ? "rgba(87,215,255,0.14)"
-          : theme.colors.surface2,
+        borderColor: active ? accentBorder : theme.colors.line,
+        backgroundColor: active ? accentBg : theme.colors.surface2,
       }}
     >
       <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
@@ -135,10 +137,14 @@ function PlanCard({
   plan,
   selected,
   onPress,
+  accentBorder,
+  accentBg,
 }: {
   plan: Plan;
   selected: boolean;
   onPress: () => void;
+  accentBorder: string;
+  accentBg: string;
 }) {
   return (
     <Pressable
@@ -146,10 +152,8 @@ function PlanCard({
       style={{
         borderRadius: theme.radius.xl,
         borderWidth: 1,
-        borderColor: selected ? "rgba(87,215,255,0.55)" : theme.colors.line,
-        backgroundColor: selected
-          ? "rgba(87,215,255,0.10)"
-          : theme.colors.surface,
+        borderColor: selected ? accentBorder : theme.colors.line,
+        backgroundColor: selected ? accentBg : theme.colors.surface,
         padding: theme.spacing(2),
       }}
     >
@@ -245,10 +249,14 @@ function PetCard({
   pet,
   selected,
   onPress,
+  accentBorder,
+  accentBg,
 }: {
   pet: any;
   selected: boolean;
   onPress: () => void;
+  accentBorder: string;
+  accentBg: string;
 }) {
   const icon = pet.type === "Perro" ? "dog" : "cat";
 
@@ -258,10 +266,8 @@ function PetCard({
       style={{
         borderRadius: theme.radius.xl,
         borderWidth: 1,
-        borderColor: selected ? "rgba(87,215,255,0.55)" : theme.colors.line,
-        backgroundColor: selected
-          ? "rgba(87,215,255,0.10)"
-          : theme.colors.surface,
+        borderColor: selected ? accentBorder : theme.colors.line,
+        backgroundColor: selected ? accentBg : theme.colors.surface,
         padding: theme.spacing(2),
       }}
     >
@@ -314,9 +320,9 @@ function PetCard({
               paddingVertical: 6,
               paddingHorizontal: 10,
               borderRadius: 999,
-              backgroundColor: "rgba(87,215,255,0.18)",
+              backgroundColor: accentBg,
               borderWidth: 1,
-              borderColor: "rgba(87,215,255,0.45)",
+              borderColor: accentBorder,
             }}
           >
             <Text
@@ -440,22 +446,29 @@ export default function BookingsScreen() {
     [pets, petId],
   );
 
+  const accent = useMemo(() => {
+    const dog = {
+      border: "rgba(87,215,255,0.55)",
+      bg: "rgba(87,215,255,0.14)",
+    };
+    const cat = {
+      border: "rgba(244,114,182,0.55)",
+      bg: "rgba(244,114,182,0.14)",
+    };
+    if (!selectedPet) return dog;
+    return selectedPet.type === "Gato" ? cat : dog;
+  }, [selectedPet]);
+
   const canContinue = Boolean(selectedPet) && Boolean(careTime);
 
   const total = useMemo(() => {
-    // Ajuste por ciudad (mock)
     const cityAdj = city === "Quito" ? 1 : city === "Porto Viejo" ? 1 : 0;
-
-    // Add-on vet (mock)
     const vet = vetCheck ? 8 : 0;
-
-    // Transporte (mock): solo para MVP, luego lo hacemos pro
     const transportAdj = transportNeeded
       ? transportType === "ida_vuelta"
         ? 4
         : 2
       : 0;
-
     return selectedPlan.basePrice + cityAdj + vet + transportAdj;
   }, [selectedPlan, city, vetCheck, transportNeeded, transportType]);
 
@@ -496,8 +509,8 @@ export default function BookingsScreen() {
                 marginTop: 12,
                 borderRadius: theme.radius.xl,
                 borderWidth: 1,
-                borderColor: "rgba(87,215,255,0.35)",
-                backgroundColor: "rgba(87,215,255,0.08)",
+                borderColor: accent.border,
+                backgroundColor: accent.bg,
                 padding: theme.spacing(2),
               }}
             >
@@ -584,6 +597,8 @@ export default function BookingsScreen() {
                   pet={p}
                   selected={petId === p.id}
                   onPress={() => setPetId(p.id)}
+                  accentBorder={accent.border}
+                  accentBg={accent.bg}
                 />
               ))}
 
@@ -661,6 +676,8 @@ export default function BookingsScreen() {
                 plan={p}
                 selected={p.id === planId}
                 onPress={() => setPlanId(p.id)}
+                accentBorder={accent.border}
+                accentBg={accent.bg}
               />
             ))}
           </View>
@@ -692,11 +709,9 @@ export default function BookingsScreen() {
               padding: theme.spacing(2),
               borderWidth: 1,
               borderColor:
-                careTime === "day" ? theme.colors.primary : theme.colors.line,
+                careTime === "day" ? accent.border : theme.colors.line,
               backgroundColor:
-                careTime === "day"
-                  ? "rgba(87,215,255,0.12)"
-                  : theme.colors.surface2,
+                careTime === "day" ? accent.bg : theme.colors.surface2,
             }}
           >
             <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
@@ -715,11 +730,9 @@ export default function BookingsScreen() {
               padding: theme.spacing(2),
               borderWidth: 1,
               borderColor:
-                careTime === "full" ? theme.colors.primary : theme.colors.line,
+                careTime === "full" ? accent.border : theme.colors.line,
               backgroundColor:
-                careTime === "full"
-                  ? "rgba(87,215,255,0.12)"
-                  : theme.colors.surface2,
+                careTime === "full" ? accent.bg : theme.colors.surface2,
             }}
           >
             <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
@@ -773,16 +786,22 @@ export default function BookingsScreen() {
                 label="Solo ida"
                 active={transportType === "ida"}
                 onPress={() => setTransportType("ida")}
+                accentBorder={accent.border}
+                accentBg={accent.bg}
               />
               <Pill
                 label="Solo vuelta"
                 active={transportType === "vuelta"}
                 onPress={() => setTransportType("vuelta")}
+                accentBorder={accent.border}
+                accentBg={accent.bg}
               />
               <Pill
                 label="Ida y vuelta"
                 active={transportType === "ida_vuelta"}
                 onPress={() => setTransportType("ida_vuelta")}
+                accentBorder={accent.border}
+                accentBg={accent.bg}
               />
             </View>
           ) : null}
@@ -816,16 +835,22 @@ export default function BookingsScreen() {
               label="Latacunga"
               active={city === "Latacunga"}
               onPress={() => setCity("Latacunga")}
+              accentBorder={accent.border}
+              accentBg={accent.bg}
             />
             <Pill
               label="Quito"
               active={city === "Quito"}
               onPress={() => setCity("Quito")}
+              accentBorder={accent.border}
+              accentBg={accent.bg}
             />
             <Pill
               label="Porto Viejo"
               active={city === "Porto Viejo"}
               onPress={() => setCity("Porto Viejo")}
+              accentBorder={accent.border}
+              accentBg={accent.bg}
             />
           </View>
         </Card>
@@ -857,6 +882,8 @@ export default function BookingsScreen() {
                 setDatePick("Hoy");
                 setCustomDate(new Date());
               }}
+              accentBorder={accent.border}
+              accentBg={accent.bg}
             />
             <Pill
               label="Mañana"
@@ -865,6 +892,8 @@ export default function BookingsScreen() {
                 setDatePick("Mañana");
                 setCustomDate(addDays(new Date(), 1));
               }}
+              accentBorder={accent.border}
+              accentBg={accent.bg}
             />
             <Pill
               label="Este sábado"
@@ -873,6 +902,8 @@ export default function BookingsScreen() {
                 setDatePick("Este sábado");
                 setCustomDate(nextSaturday(new Date()));
               }}
+              accentBorder={accent.border}
+              accentBg={accent.bg}
             />
 
             <Pressable
@@ -1160,7 +1191,6 @@ export default function BookingsScreen() {
                     city,
                     dateLabel: formatDateLabel(),
                     totalUSD: moneyUSD(total),
-
                     transportNeeded: String(transportNeeded),
                     transportType,
                   },
