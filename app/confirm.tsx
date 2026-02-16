@@ -17,7 +17,6 @@ type CareTime = "day" | "full";
 function pickString(v: unknown, fallback = "") {
   return typeof v === "string" ? v : fallback;
 }
-
 function pickEnum<T extends string>(
   v: unknown,
   allowed: readonly T[],
@@ -39,6 +38,21 @@ function transportLabel(t?: TransportType) {
   if (t === "ida") return "Solo ida";
   if (t === "vuelta") return "Solo vuelta";
   return "Ida y vuelta";
+}
+
+function formatCreatedAt(iso: string) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("es-EC", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
 }
 
 export default function ConfirmScreen() {
@@ -83,6 +97,8 @@ export default function ConfirmScreen() {
     if (confirmedRef.current) return;
     confirmedRef.current = true;
 
+    const createdAtISO = new Date().toISOString();
+
     addBooking({
       id: makeId("b"),
       petName,
@@ -94,13 +110,19 @@ export default function ConfirmScreen() {
       dateLabel,
       totalUSD,
       status: "pendiente",
-      createdAtISO: new Date().toISOString(),
+      createdAtISO,
       transportNeeded,
       transportType: transportNeeded ? transportType : undefined,
     });
 
-    router.replace("/(tabs)");
+    // Te manda al Tab Historial para ver tu reserva caer como meteorito 🧾
+    router.replace("/(tabs)/history");
   };
+
+  const createdAtPreview = useMemo(() => {
+    // preview de “fecha de reserva” (para que el usuario sienta realidad)
+    return formatCreatedAt(new Date().toISOString());
+  }, []);
 
   return (
     <Screen>
@@ -125,10 +147,12 @@ export default function ConfirmScreen() {
           <Text
             style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}
           >
-            Revisa que todo esté perfecto. Mantén presionado para confirmar 🐾
+            Revisa que todo esté perfecto. Si esto sale bien… tu peludito sube
+            de rango a “VIP” 😼🐶
           </Text>
 
           <Card style={{ marginTop: theme.spacing(2) }}>
+            {/* Header mascota */}
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
             >
@@ -176,7 +200,7 @@ export default function ConfirmScreen() {
             <View style={{ height: 14 }} />
 
             <View style={{ gap: 10 }}>
-              <Row icon={planIcon as any} label="Plan" value={planName} />
+              <Row icon={planIcon} label="Plan" value={planName} />
               <Row icon="clock-outline" label="Tiempo" value={careTimeLabel} />
               <Row icon="map-marker" label="Ciudad" value={city} />
               <Row icon="calendar" label="Fecha" value={dateLabel} />
@@ -184,6 +208,11 @@ export default function ConfirmScreen() {
                 icon="car"
                 label="Transporte"
                 value={transportNeeded ? transportLabel(transportType) : "No"}
+              />
+              <Row
+                icon="clock-time-four-outline"
+                label="Reserva"
+                value={createdAtPreview}
               />
             </View>
 
@@ -216,8 +245,9 @@ export default function ConfirmScreen() {
           <View style={{ marginTop: theme.spacing(2), gap: 10 }}>
             <HoldButton
               title="Confirmar reserva ✅"
-              hint="Mantén para confirmar"
+              hint="Mantén presionado"
               variant="success"
+              holdMs={900}
               onComplete={onConfirm}
             />
 

@@ -74,21 +74,55 @@ function transportLabel(type?: Booking["transportType"]) {
   return "Ida y vuelta";
 }
 
-function safeDate(iso?: string) {
-  const t = iso ? Date.parse(iso) : NaN;
-  return Number.isFinite(t) ? t : 0;
+function formatCreatedAt(iso: string) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("es-EC", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
 }
 
-function formatCreatedAt(iso?: string) {
-  const t = iso ? Date.parse(iso) : NaN;
-  if (!Number.isFinite(t)) return "—";
-  return new Date(t).toLocaleString("es-EC", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function Line({
+  icon,
+  label,
+  value,
+  valueStrong,
+}: {
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  label: string;
+  value: string;
+  valueStrong?: boolean;
+}) {
+  return (
+    <View
+      style={{
+        marginTop: 8,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      <MaterialCommunityIcons name={icon} size={18} color={theme.colors.warn} />
+      <Text style={{ color: theme.colors.muted }}>
+        {label}:{" "}
+        <Text
+          style={{
+            color: theme.colors.text,
+            fontWeight: valueStrong ? "900" : "800",
+          }}
+        >
+          {value}
+        </Text>
+      </Text>
+    </View>
+  );
 }
 
 export default function HistoryScreen() {
@@ -97,36 +131,68 @@ export default function HistoryScreen() {
   const cancelBooking = useBookingsStore((s) => s.cancelBooking);
 
   const [filter, setFilter] = useState<Filter>("todas");
-  const [limit, setLimit] = useState(5);
-
-  const sorted = useMemo(() => {
-    return [...bookings].sort(
-      (a, b) => safeDate(b.createdAtISO) - safeDate(a.createdAtISO),
-    );
-  }, [bookings]);
+  const [showAll, setShowAll] = useState(false);
 
   const counts = useMemo(() => {
-    const c = { pendiente: 0, confirmada: 0, cancelada: 0 };
-    for (const b of bookings) c[b.status] += 1;
-    return c;
+    const pending = bookings.filter((b) => b.status === "pendiente").length;
+    const confirmed = bookings.filter((b) => b.status === "confirmada").length;
+    const canceled = bookings.filter((b) => b.status === "cancelada").length;
+    return {
+      todas: bookings.length,
+      pendiente: pending,
+      confirmada: confirmed,
+      cancelada: canceled,
+    };
   }, [bookings]);
 
+  const filtered = useMemo(() => {
+    const base =
+      filter === "todas"
+        ? bookings
+        : bookings.filter((b) => b.status === filter);
+    // orden: más recientes arriba (createdAtISO)
+    return [...base].sort((a, b) =>
+      b.createdAtISO.localeCompare(a.createdAtISO),
+    );
+  }, [bookings, filter]);
+
   const list = useMemo(() => {
-    if (filter === "todas") return sorted;
-    return sorted.filter((b) => b.status === filter);
-  }, [sorted, filter]);
+    return showAll ? filtered : filtered.slice(0, 5);
+  }, [filtered, showAll]);
 
-  const visible = useMemo(() => list.slice(0, limit), [list, limit]);
-  const remaining = Math.max(0, list.length - visible.length);
-
-  const doConfirm = (id: string) => {
-    confirmBooking(id);
-    Alert.alert("Confirmada ✅", "La reserva pasó a estado Confirmada.");
+  const askCancel = (id: string) => {
+    Alert.alert(
+      "Cancelar reserva",
+      "¿Seguro que deseas cancelar esta reserva?\n\nEsta acción no se puede deshacer.",
+      [
+        { text: "Volver", style: "cancel" },
+        {
+          text: "Sí, cancelar",
+          style: "destructive",
+          onPress: () => {
+            cancelBooking(id);
+            Alert.alert("Listo", "Reserva cancelada ❌");
+          },
+        },
+      ],
+    );
   };
 
-  const doCancel = (id: string) => {
-    cancelBooking(id);
-    Alert.alert("Cancelada ❌", "La reserva fue cancelada.");
+  const askConfirm = (id: string) => {
+    Alert.alert(
+      "Confirmar reserva",
+      "¿Confirmamos esta reserva?\n\nPasará a estado “Confirmada”.",
+      [
+        { text: "Volver", style: "cancel" },
+        {
+          text: "Sí, confirmar",
+          onPress: () => {
+            confirmBooking(id);
+            Alert.alert("Perfecto", "Reserva confirmada ✅");
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -135,10 +201,10 @@ export default function HistoryScreen() {
         <Text
           style={{ color: theme.colors.text, fontSize: 28, fontWeight: "900" }}
         >
-          Mis reservas
+          Historial
         </Text>
         <Text style={{ color: theme.colors.muted, marginTop: 6 }}>
-          Historial y estado de tus aventuras 🐾
+          Tus reservas, tu rastro… tu leyenda 🐾
         </Text>
 
         <Card style={{ marginTop: theme.spacing(3) }}>
@@ -161,11 +227,11 @@ export default function HistoryScreen() {
             }}
           >
             <Pill
-              label="Todas"
+              label={`Todas (${counts.todas})`}
               active={filter === "todas"}
               onPress={() => {
                 setFilter("todas");
-                setLimit(5);
+                setShowAll(false);
               }}
             />
             <Pill
@@ -173,7 +239,7 @@ export default function HistoryScreen() {
               active={filter === "pendiente"}
               onPress={() => {
                 setFilter("pendiente");
-                setLimit(5);
+                setShowAll(false);
               }}
             />
             <Pill
@@ -181,7 +247,7 @@ export default function HistoryScreen() {
               active={filter === "confirmada"}
               onPress={() => {
                 setFilter("confirmada");
-                setLimit(5);
+                setShowAll(false);
               }}
             />
             <Pill
@@ -189,32 +255,49 @@ export default function HistoryScreen() {
               active={filter === "cancelada"}
               onPress={() => {
                 setFilter("cancelada");
-                setLimit(5);
+                setShowAll(false);
               }}
             />
           </View>
         </Card>
 
         <Card style={{ marginTop: theme.spacing(2) }}>
-          <Text
+          <View
             style={{
-              color: theme.colors.text,
-              fontSize: 16,
-              fontWeight: "900",
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
             }}
           >
-            Reservas ({list.length})
-          </Text>
+            <Text
+              style={{
+                color: theme.colors.text,
+                fontSize: 16,
+                fontWeight: "900",
+              }}
+            >
+              Reservas ({filtered.length})
+            </Text>
 
-          {list.length === 0 ? (
+            {filtered.length > 5 ? (
+              <Button
+                title={showAll ? "Ver menos" : "Ver más"}
+                variant="secondary"
+                onPress={() => setShowAll((x) => !x)}
+                style={{ paddingVertical: 10, paddingHorizontal: 12 }}
+                textStyle={{ fontSize: 13 }}
+              />
+            ) : null}
+          </View>
+
+          {filtered.length === 0 ? (
             <Text style={{ color: theme.colors.muted, marginTop: 10 }}>
               Aquí aparecerán tus reservas. Crea una en “Reservar” 😄
             </Text>
           ) : (
             <View style={{ marginTop: 12, gap: 10 }}>
-              {visible.map((b) => {
+              {list.map((b) => {
                 const meta = statusMeta(b.status);
-                const canAct = b.status === "pendiente";
 
                 const careTimeLabel =
                   b.careTime === "day"
@@ -224,6 +307,9 @@ export default function HistoryScreen() {
                 const transportText = b.transportNeeded
                   ? transportLabel(b.transportType)
                   : "No necesita";
+
+                const reservedAtText = formatCreatedAt(b.createdAtISO);
+                const canAct = b.status === "pendiente";
 
                 return (
                   <View
@@ -236,6 +322,7 @@ export default function HistoryScreen() {
                       padding: theme.spacing(2),
                     }}
                   >
+                    {/* Header */}
                     <View
                       style={{
                         flexDirection: "row",
@@ -296,32 +383,7 @@ export default function HistoryScreen() {
                       </View>
                     </View>
 
-                    <View
-                      style={{
-                        marginTop: 8,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <MaterialCommunityIcons
-                        name="calendar-clock"
-                        size={16}
-                        color={theme.colors.muted}
-                      />
-                      <Text style={{ color: theme.colors.muted }}>
-                        Fecha de reserva:{" "}
-                        <Text
-                          style={{
-                            color: theme.colors.text,
-                            fontWeight: "800",
-                          }}
-                        >
-                          {formatCreatedAt(b.createdAtISO)}
-                        </Text>
-                      </Text>
-                    </View>
-
+                    {/* Plan */}
                     <Text
                       style={{
                         color: theme.colors.text,
@@ -332,40 +394,27 @@ export default function HistoryScreen() {
                       {b.planName}
                     </Text>
 
-                    <Text style={{ color: theme.colors.muted, marginTop: 6 }}>
+                    {/* Fechas CLARAS */}
+                    <Line
+                      icon="calendar"
+                      label="Servicio"
+                      value={`${b.city} · ${b.dateLabel}`}
+                      valueStrong
+                    />
+                    <Line
+                      icon="receipt-text-clock"
+                      label="Reservado"
+                      value={reservedAtText}
+                    />
+
+                    {/* Tiempo + transporte */}
+                    <Text style={{ color: theme.colors.muted, marginTop: 8 }}>
                       {careTimeLabel}
                     </Text>
 
-                    <Text style={{ color: theme.colors.muted, marginTop: 6 }}>
-                      {b.city} · {b.dateLabel}
-                    </Text>
+                    <Line icon="car" label="Transporte" value={transportText} />
 
-                    <View
-                      style={{
-                        marginTop: 8,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <MaterialCommunityIcons
-                        name="car"
-                        size={18}
-                        color={theme.colors.warn}
-                      />
-                      <Text style={{ color: theme.colors.muted }}>
-                        Transporte:{" "}
-                        <Text
-                          style={{
-                            color: theme.colors.text,
-                            fontWeight: "800",
-                          }}
-                        >
-                          {transportText}
-                        </Text>
-                      </Text>
-                    </View>
-
+                    {/* Total */}
                     <View
                       style={{
                         marginTop: 10,
@@ -393,43 +442,39 @@ export default function HistoryScreen() {
                       </Text>
                     </View>
 
-                    {canAct && (
+                    {/* Acciones 2 columnas + Hold */}
+                    {canAct ? (
                       <View
-                        style={{ marginTop: 12, flexDirection: "row", gap: 10 }}
+                        style={{
+                          marginTop: 12,
+                          flexDirection: "row",
+                          gap: 10,
+                        }}
                       >
                         <View style={{ flex: 1 }}>
                           <HoldButton
-                            title="Mantén para confirmar"
-                            hint="Confirmando"
+                            title="Confirmar"
+                            hint="Mantén"
                             variant="success"
                             holdMs={850}
-                            onComplete={() => doConfirm(b.id)}
+                            onComplete={() => askConfirm(b.id)}
                           />
                         </View>
+
                         <View style={{ flex: 1 }}>
                           <HoldButton
-                            title="Mantén para cancelar"
-                            hint="Cancelando"
+                            title="Cancelar"
+                            hint="Mantén"
                             variant="danger"
-                            holdMs={950}
-                            onComplete={() => doCancel(b.id)}
+                            holdMs={850}
+                            onComplete={() => askCancel(b.id)}
                           />
                         </View>
                       </View>
-                    )}
+                    ) : null}
                   </View>
                 );
               })}
-
-              {remaining > 0 ? (
-                <View style={{ marginTop: 10 }}>
-                  <Button
-                    title={`Ver más (+${Math.min(5, remaining)})`}
-                    variant="secondary"
-                    onPress={() => setLimit((x) => x + 5)}
-                  />
-                </View>
-              ) : null}
             </View>
           )}
         </Card>
