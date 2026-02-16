@@ -46,18 +46,7 @@ export default function RootLayout() {
         options={{
           title: "Reservar",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size ?? 24} color={color} />
-          ),
-        }}
-      />
-
-      {/* Historial: Mis reservas */}
-      <Tabs.Screen
-        name="history"
-        options={{
-          title: "Historial",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="time" size={size ?? 24} color={color} />
+            <Ionicons name="create" size={size ?? 24} color={color} />
           ),
         }}
       />
@@ -69,6 +58,17 @@ export default function RootLayout() {
           title: "Peluditos",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="paw" size={size ?? 24} color={color} />
+          ),
+        }}
+      />
+
+      {/* Historial: Mis reservas */}
+      <Tabs.Screen
+        name="history"
+        options={{
+          title: "Historial",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="time" size={size ?? 24} color={color} />
           ),
         }}
       />

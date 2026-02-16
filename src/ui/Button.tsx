@@ -1,10 +1,18 @@
 import { Pressable, Text, TextStyle, ViewStyle } from "react-native";
 import { theme } from "../theme/theme";
 
+type Variant =
+  | "primary"
+  | "secondary"
+  | "danger"
+  | "success"
+  | "ghost"
+  | "outline";
+
 type Props = {
   title: string;
   onPress?: () => void;
-  variant?: "primary" | "secondary" | "danger" | "success";
+  variant?: Variant;
   style?: ViewStyle;
   textStyle?: TextStyle;
   disabled?: boolean;
@@ -18,14 +26,20 @@ export function Button({
   textStyle,
   disabled,
 }: Props) {
+  const isPrimary = variant === "primary";
+  const isGhost = variant === "ghost";
+  const isOutline = variant === "outline";
+
   const bg =
-    variant === "primary"
-      ? theme.colors.primary
-      : variant === "success"
-        ? "rgba(34,197,94,0.22)"
-        : variant === "danger"
-          ? "rgba(239,68,68,0.20)"
-          : theme.colors.surface2;
+    isGhost || isOutline
+      ? "transparent"
+      : isPrimary
+        ? theme.colors.primary
+        : variant === "success"
+          ? "rgba(34,197,94,0.22)"
+          : variant === "danger"
+            ? "rgba(239,68,68,0.16)"
+            : theme.colors.surface2;
 
   const borderColor =
     variant === "success"
@@ -36,7 +50,7 @@ export function Button({
 
   const color = disabled
     ? theme.colors.muted
-    : variant === "primary"
+    : isPrimary
       ? "#001018"
       : theme.colors.text;
 
@@ -54,7 +68,8 @@ export function Button({
           transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
           opacity: disabled ? 0.55 : pressed ? 0.92 : 1,
         },
-        !disabled ? theme.shadow.card : null,
+        // sombra solo para botones con “cuerpo”
+        !disabled && !isGhost && !isOutline ? theme.shadow.card : null,
         style,
       ]}
     >

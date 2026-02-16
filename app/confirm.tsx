@@ -7,6 +7,7 @@ import { TransportType, useBookingsStore } from "../src/store/bookingsStore";
 import { theme } from "../src/theme/theme";
 import { Button } from "../src/ui/Button";
 import { Card } from "../src/ui/Card";
+import { HoldButton } from "../src/ui/HoldButton";
 import { Screen } from "../src/ui/Screen";
 
 type PetType = "Perro" | "Gato";
@@ -16,6 +17,7 @@ type CareTime = "day" | "full";
 function pickString(v: unknown, fallback = "") {
   return typeof v === "string" ? v : fallback;
 }
+
 function pickEnum<T extends string>(
   v: unknown,
   allowed: readonly T[],
@@ -25,11 +27,13 @@ function pickEnum<T extends string>(
     ? (v as T)
     : fallback;
 }
+
 function makeId(prefix = "b") {
   const t = Date.now().toString(36);
   const r = Math.random().toString(36).slice(2, 10);
   return `${prefix}_${t}_${r}`;
 }
+
 function transportLabel(t?: TransportType) {
   if (!t) return "No";
   if (t === "ida") return "Solo ida";
@@ -121,8 +125,7 @@ export default function ConfirmScreen() {
           <Text
             style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}
           >
-            Revisa que todo esté perfecto. Tu peludito está por ser tratado como
-            rey 👑
+            Revisa que todo esté perfecto. Mantén presionado para confirmar 🐾
           </Text>
 
           <Card style={{ marginTop: theme.spacing(2) }}>
@@ -173,7 +176,7 @@ export default function ConfirmScreen() {
             <View style={{ height: 14 }} />
 
             <View style={{ gap: 10 }}>
-              <Row icon={planIcon} label="Plan" value={planName} />
+              <Row icon={planIcon as any} label="Plan" value={planName} />
               <Row icon="clock-outline" label="Tiempo" value={careTimeLabel} />
               <Row icon="map-marker" label="Ciudad" value={city} />
               <Row icon="calendar" label="Fecha" value={dateLabel} />
@@ -210,9 +213,14 @@ export default function ConfirmScreen() {
             </View>
           </Card>
 
-          <View style={{ marginTop: theme.spacing(2) }}>
-            <Button title="Confirmar reserva ✅" onPress={onConfirm} />
-            <View style={{ height: 10 }} />
+          <View style={{ marginTop: theme.spacing(2), gap: 10 }}>
+            <HoldButton
+              title="Confirmar reserva ✅"
+              hint="Mantén para confirmar"
+              variant="success"
+              onComplete={onConfirm}
+            />
+
             <Button
               title="Volver"
               variant="secondary"
@@ -232,7 +240,7 @@ function Row({
   label,
   value,
 }: {
-  icon: any;
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
   label: string;
   value: string;
 }) {

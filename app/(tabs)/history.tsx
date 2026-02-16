@@ -6,6 +6,7 @@ import { Booking, useBookingsStore } from "../../src/store/bookingsStore";
 import { theme } from "../../src/theme/theme";
 import { Button } from "../../src/ui/Button";
 import { Card } from "../../src/ui/Card";
+import { HoldButton } from "../../src/ui/HoldButton";
 import { Screen } from "../../src/ui/Screen";
 
 type Filter = "todas" | "pendiente" | "confirmada" | "cancelada";
@@ -73,51 +74,59 @@ function transportLabel(type?: Booking["transportType"]) {
   return "Ida y vuelta";
 }
 
+function safeDate(iso?: string) {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isFinite(t) ? t : 0;
+}
+
+function formatCreatedAt(iso?: string) {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return "—";
+  return new Date(t).toLocaleString("es-EC", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function HistoryScreen() {
   const bookings = useBookingsStore((s) => s.bookings);
   const confirmBooking = useBookingsStore((s) => s.confirmBooking);
   const cancelBooking = useBookingsStore((s) => s.cancelBooking);
 
   const [filter, setFilter] = useState<Filter>("todas");
+  const [limit, setLimit] = useState(5);
+
+  const sorted = useMemo(() => {
+    return [...bookings].sort(
+      (a, b) => safeDate(b.createdAtISO) - safeDate(a.createdAtISO),
+    );
+  }, [bookings]);
+
+  const counts = useMemo(() => {
+    const c = { pendiente: 0, confirmada: 0, cancelada: 0 };
+    for (const b of bookings) c[b.status] += 1;
+    return c;
+  }, [bookings]);
 
   const list = useMemo(() => {
-    if (filter === "todas") return bookings;
-    return bookings.filter((b) => b.status === filter);
-  }, [bookings, filter]);
+    if (filter === "todas") return sorted;
+    return sorted.filter((b) => b.status === filter);
+  }, [sorted, filter]);
 
-  const askCancel = (id: string) => {
-    Alert.alert(
-      "Cancelar reserva",
-      "¿Seguro que deseas cancelar esta reserva?\n\nEsta acción no se puede deshacer.",
-      [
-        { text: "Volver", style: "cancel" },
-        {
-          text: "Sí, cancelar",
-          style: "destructive",
-          onPress: () => {
-            cancelBooking(id);
-            Alert.alert("Listo", "Reserva cancelada ❌");
-          },
-        },
-      ],
-    );
+  const visible = useMemo(() => list.slice(0, limit), [list, limit]);
+  const remaining = Math.max(0, list.length - visible.length);
+
+  const doConfirm = (id: string) => {
+    confirmBooking(id);
+    Alert.alert("Confirmada ✅", "La reserva pasó a estado Confirmada.");
   };
 
-  const askConfirm = (id: string) => {
-    Alert.alert(
-      "Confirmar reserva",
-      "¿Confirmamos esta reserva?\n\nPasará a estado “Confirmada”.",
-      [
-        { text: "Volver", style: "cancel" },
-        {
-          text: "Sí, confirmar",
-          onPress: () => {
-            confirmBooking(id);
-            Alert.alert("Perfecto", "Reserva confirmada ✅");
-          },
-        },
-      ],
-    );
+  const doCancel = (id: string) => {
+    cancelBooking(id);
+    Alert.alert("Cancelada ❌", "La reserva fue cancelada.");
   };
 
   return (
@@ -154,22 +163,34 @@ export default function HistoryScreen() {
             <Pill
               label="Todas"
               active={filter === "todas"}
-              onPress={() => setFilter("todas")}
+              onPress={() => {
+                setFilter("todas");
+                setLimit(5);
+              }}
             />
             <Pill
-              label="Pendiente"
+              label={`Pendiente (${counts.pendiente})`}
               active={filter === "pendiente"}
-              onPress={() => setFilter("pendiente")}
+              onPress={() => {
+                setFilter("pendiente");
+                setLimit(5);
+              }}
             />
             <Pill
-              label="Confirmada"
+              label={`Confirmada (${counts.confirmada})`}
               active={filter === "confirmada"}
-              onPress={() => setFilter("confirmada")}
+              onPress={() => {
+                setFilter("confirmada");
+                setLimit(5);
+              }}
             />
             <Pill
-              label="Cancelada"
+              label={`Cancelada (${counts.cancelada})`}
               active={filter === "cancelada"}
-              onPress={() => setFilter("cancelada")}
+              onPress={() => {
+                setFilter("cancelada");
+                setLimit(5);
+              }}
             />
           </View>
         </Card>
@@ -187,24 +208,22 @@ export default function HistoryScreen() {
 
           {list.length === 0 ? (
             <Text style={{ color: theme.colors.muted, marginTop: 10 }}>
-              Aquí aparecerán tus reservas. Crea una en “Nueva” 😄
+              Aquí aparecerán tus reservas. Crea una en “Reservar” 😄
             </Text>
           ) : (
             <View style={{ marginTop: 12, gap: 10 }}>
-              {list.map((b) => {
+              {visible.map((b) => {
                 const meta = statusMeta(b.status);
+                const canAct = b.status === "pendiente";
 
                 const careTimeLabel =
                   b.careTime === "day"
                     ? "Día laboral (08:30 – 18:00)"
                     : "24 horas (Hospedaje)";
 
-                const showTransport = Boolean(b.transportNeeded);
-                const transportText = showTransport
+                const transportText = b.transportNeeded
                   ? transportLabel(b.transportType)
                   : "No necesita";
-
-                const canAct = b.status === "pendiente";
 
                 return (
                   <View
@@ -275,6 +294,32 @@ export default function HistoryScreen() {
                           {meta.label}
                         </Text>
                       </View>
+                    </View>
+
+                    <View
+                      style={{
+                        marginTop: 8,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name="calendar-clock"
+                        size={16}
+                        color={theme.colors.muted}
+                      />
+                      <Text style={{ color: theme.colors.muted }}>
+                        Fecha de reserva:{" "}
+                        <Text
+                          style={{
+                            color: theme.colors.text,
+                            fontWeight: "800",
+                          }}
+                        >
+                          {formatCreatedAt(b.createdAtISO)}
+                        </Text>
+                      </Text>
                     </View>
 
                     <Text
@@ -349,22 +394,42 @@ export default function HistoryScreen() {
                     </View>
 
                     {canAct && (
-                      <View style={{ marginTop: 12, gap: 10 }}>
-                        <Button
-                          title="Confirmar reserva"
-                          variant="success"
-                          onPress={() => askConfirm(b.id)}
-                        />
-                        <Button
-                          title="Cancelar reserva"
-                          variant="danger"
-                          onPress={() => askCancel(b.id)}
-                        />
+                      <View
+                        style={{ marginTop: 12, flexDirection: "row", gap: 10 }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <HoldButton
+                            title="Mantén para confirmar"
+                            hint="Confirmando"
+                            variant="success"
+                            holdMs={850}
+                            onComplete={() => doConfirm(b.id)}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <HoldButton
+                            title="Mantén para cancelar"
+                            hint="Cancelando"
+                            variant="danger"
+                            holdMs={950}
+                            onComplete={() => doCancel(b.id)}
+                          />
+                        </View>
                       </View>
                     )}
                   </View>
                 );
               })}
+
+              {remaining > 0 ? (
+                <View style={{ marginTop: 10 }}>
+                  <Button
+                    title={`Ver más (+${Math.min(5, remaining)})`}
+                    variant="secondary"
+                    onPress={() => setLimit((x) => x + 5)}
+                  />
+                </View>
+              ) : null}
             </View>
           )}
         </Card>
