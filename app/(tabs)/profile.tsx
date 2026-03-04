@@ -1,12 +1,16 @@
+// app/(tabs)/profile.tsx
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
+
+import { useAuthStore } from "../../src/store/authStore";
 import { useBookingsStore } from "../../src/store/bookingsStore";
 import { usePetsStore } from "../../src/store/petsStore";
 import { theme } from "../../src/theme/theme";
 import { Button } from "../../src/ui/Button";
 import { Card } from "../../src/ui/Card";
+import { HoldButton } from "../../src/ui/HoldButton";
 import { Screen } from "../../src/ui/Screen";
 
 function MenuRow({
@@ -87,6 +91,13 @@ export default function ProfileScreen() {
   const clearBookings = useBookingsStore((s) => s.clearAll);
   const clearPets = usePetsStore((s) => s.clearAll);
 
+  const user = useAuthStore((s) => s.user);
+  const signOut = useAuthStore((s) => s.signOut);
+
+  const subtitleSession = user
+    ? `${user.email ?? "Conectado"} · ${(user.provider ?? "demo").toUpperCase()}`
+    : "Apple / Google (WhatsApp después)";
+
   return (
     <Screen>
       <ScrollView>
@@ -133,10 +144,10 @@ export default function ProfileScreen() {
             />
 
             <MenuRow
-              icon="shield-account"
-              title="Iniciar sesión"
-              subtitle="Próximamente (Apple / Google / WhatsApp)"
-              onPress={() => {}}
+              icon={user ? "shield-check" : "shield-account"}
+              title={user ? "Sesión activa" : "Iniciar sesión"}
+              subtitle={subtitleSession}
+              onPress={() => router.push("/login")}
             />
           </View>
         </Card>
@@ -168,6 +179,19 @@ export default function ProfileScreen() {
             </View>
           </Card>
         )}
+
+        {user ? (
+          <View style={{ marginTop: theme.spacing(2) }}>
+            <HoldButton
+              title="Cerrar sesión"
+              hint="Mantén para salir"
+              variant="danger"
+              onComplete={() => {
+                void signOut();
+              }}
+            />
+          </View>
+        ) : null}
 
         <View style={{ height: 22 }} />
       </ScrollView>

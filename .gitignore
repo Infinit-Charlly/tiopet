@@ -57,5 +57,7 @@ app-example
 # package
 package-lock.json
 
+# .env
+.env
 
 
