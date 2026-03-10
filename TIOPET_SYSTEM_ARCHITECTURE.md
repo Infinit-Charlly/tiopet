@@ -1,84 +1,143 @@
 
 # TIOPET_SYSTEM_ARCHITECTURE.md
+
 TioPet — System Architecture & Technical Roadmap
 
 Author: Charlly Acuña
-Purpose: Technical blueprint for AI-assisted development (Claude Code or other agents)
+Purpose: Technical blueprint for AI-assisted development (Claude Code / Codex / other agents)
 
 ---
 
-# 1. System Overview
+# 1. System Vision
 
-TioPet is designed as a **pet services ecosystem platform** combining:
+TioPet is a pet services ecosystem platform designed to provide safe, transparent, and high-quality care for pets.
 
-1. Official TioPet locations (daycare / hostal / services)
-2. External caregiver network
-3. Digital booking and operations platform
+The platform begins as a centralized pet care center system and evolves into a multi-service ecosystem for pet owners.
 
-The system must support **multi-city operations, franchise scaling, and service marketplaces.**
+The platform will support:
 
----
+- Official TioPet daycare / hostal centers
+- Professional caregivers
+- Service bookings
+- Pet care activity tracking
+- Pet store purchases
+- Notifications and updates
+- Secure pickup verification
+- Future AI-assisted monitoring
 
-# 2. High Level Architecture
-
-Client Layer
-
-Mobile App (React Native / Expo)
-
-Backend Layer
-
-API Layer
-Authentication Service
-Booking Service
-Pet Service
-Location Service
-Notification Service
-
-Data Layer
-
-Primary Database
-File Storage
-Cache Layer
-
-External Integrations
-
-Payments
-WhatsApp API
-Push notifications
+The system must support multi-city operations, franchise expansion, and service marketplaces.
 
 ---
 
-# 3. Proposed Tech Stack
+# 2. Architectural Philosophy
 
-Frontend
+TioPet follows a layered architecture designed for gradual scaling.
 
-React Native
-Expo Router
-TypeScript
-Zustand (state)
+Layers:
 
-Backend (recommended)
-
-Node.js
-Express or NestJS
-REST API
-
-Database
-
-PostgreSQL (preferred)
-or Firestore
-
-Storage
-
-Cloud storage for pet photos
-
-Notifications
-
-Firebase Cloud Messaging
+1. Presentation Layer
+2. Domain Layer
+3. State Layer
+4. Infrastructure Layer
+5. Intelligence Layer
 
 ---
 
-# 4. Core Entities (Database Model)
+# 3. High Level Architecture
+
+## Client Layer
+Mobile App (React Native + Expo)
+
+## Backend Layer (future)
+- API Gateway
+- Authentication Service
+- Booking Service
+- Pet Service
+- Care Service
+- Store Service
+- Notification Service
+
+## Data Layer
+- Primary Database
+- File Storage
+- Cache Layer
+
+## External Integrations
+- Payment Providers
+- WhatsApp API
+- Push Notifications
+
+---
+
+# 4. Current Frontend Architecture
+
+Technologies:
+
+- React Native
+- Expo Router
+- TypeScript
+- Zustand
+- AsyncStorage
+
+Repository structure:
+
+app/
+  (tabs)/
+    login.tsx
+    confirm.tsx
+    history.tsx
+    profile.tsx
+
+src/
+  domain/
+    bookings/
+  store/
+  lib/
+  auth/
+
+---
+
+# 5. Domain Layer
+
+Domain logic lives in:
+
+src/domain/
+
+Example:
+
+src/domain/bookings/
+
+Modules:
+
+- pricing
+- plans
+- booking options
+- labels
+- types
+- date calculations
+
+---
+
+# 6. State Layer
+
+State uses Zustand.
+
+Example:
+
+src/store/bookingsStore.ts
+
+Responsibilities:
+
+- manage booking state
+- synchronize with persistence
+- expose actions to UI
+- handle hydration
+
+Persistence uses AsyncStorage.
+
+---
+
+# 7. Core Entities
 
 Users
 
@@ -97,6 +156,7 @@ name
 species
 breed
 age
+weight
 notes
 photo_url
 
@@ -105,23 +165,8 @@ Locations
 id
 city
 name
-type (TioPet location / partner caregiver)
+type
 capacity
-
-Services
-
-id
-location_id
-service_type (daycare / hostal / walk)
-duration
-price
-
-Addons
-
-id
-service_id
-name
-price
 
 Bookings
 
@@ -134,173 +179,170 @@ end_date
 status
 qr_code
 
-Reviews
+Store Products
+
+id
+name
+category
+price
+stock
+description
+
+Care Events
 
 id
 booking_id
-rating
-comment
+caregiver_id
+event_type
+notes
+photo_url
+created_at
 
 ---
 
-# 5. Booking Flow
+# 8. Booking Flow
 
-Step 1
-User selects pet
-
-Step 2
-User selects location or caregiver
-
-Step 3
-User selects service
-
-Step 4
-User selects addons
-
-Step 5
-Reservation confirmation
-
-Step 6
-QR code generated
-
-Step 7
-Check-in / Check-out
+1. User selects pet
+2. User selects location
+3. User selects service
+4. User selects addons
+5. Reservation confirmed
+6. QR generated
+7. Check-in
+8. Care events
+9. Check-out
 
 ---
 
-# 6. QR System
+# 9. Pet Care Timeline
 
-Each reservation generates a secure QR.
+Events may include:
 
-Uses:
+- check-in
+- feeding
+- snack
+- playtime
+- nap
+- walk
+- grooming
+- photo update
+- check-out
 
-Pet drop-off verification
-Pet pickup verification
-Staff validation
-
----
-
-# 7. Location Model
-
-Cities contain multiple locations.
-
-Location types:
-
-TioPet Official
-Partner Caregiver
+Owners can review the full experience.
 
 ---
 
-# 8. Admin System
-
-Admin dashboard should allow:
-
-Manage users
-Manage pets
-Manage locations
-Manage services
-View bookings
-View analytics
-
----
-
-# 9. Caregiver Dashboard
+# 10. Caregiver System
 
 Caregivers can:
 
-Set availability
-Manage bookings
-View earnings
+- view assigned pets
+- log activities
+- upload photos
+- record walks
+- report incidents
+- perform check-in / check-out
 
 ---
 
-# 10. Payment Architecture
+# 11. QR Pickup Verification
 
-Future integration with:
+Each booking generates a secure QR code.
 
-Stripe
-MercadoPago
+Flow:
 
-Payments should support:
-
-Full payment
-Deposit
-Split payments
+1. Owner receives QR
+2. Staff scans QR
+3. System validates booking
+4. Pet released
 
 ---
 
-# 11. Notification System
+# 12. Integrated Pet Store
 
-Push notifications
+Products may include:
 
-Reservation confirmed
-Pet checked-in
-Pet ready for pickup
+- food
+- snacks
+- bones
+- toys
+- hygiene products
 
-Future integration:
+Delivery options:
 
-WhatsApp notifications
-
----
-
-# 12. AI Integration (Future)
-
-AI assistant may allow:
-
-Booking through chat
-Customer support
-Smart reminders
-Service recommendations
+- check-in
+- during stay
+- check-out
 
 ---
 
-# 13. Security Considerations
+# 13. Notification System
 
-User authentication
-QR validation
-Location verification
-Data privacy
+Events trigger notifications:
 
----
+- booking confirmed
+- pet checked-in
+- photo uploaded
+- pet ready for pickup
 
-# 14. Development Phases
+Channels:
 
-Phase 1 — MVP
-
-Authentication
-Pet profiles
-Service catalog
-Booking flow
-
-Phase 2 — Operations
-
-QR system
-Admin panel
-Notifications
-
-Phase 3 — Marketplace
-
-Caregiver network
-Ratings
-Payments
-
-Phase 4 — Ecosystem
-
-AI services
-Store
-Transport
-Franchise scaling
+- push
+- email
+- WhatsApp (future)
 
 ---
 
-# 15. Development Strategy
+# 14. Payment Architecture
 
-AI-assisted development
+Future integrations:
 
-Human provides vision
-AI executes architecture and coding
+- Stripe
+- MercadoPago
+- Ecuador local payment providers
 
-Claude Code should analyze the repository and extend it using this architecture as baseline.
+Payments must support SRI-compatible processes.
+
+---
+
+# 15. AI Layer (Future)
+
+Possible features:
+
+- bark detection
+- noise anomaly detection
+- fight detection
+- automated summaries
+
+AI requires operational data first.
+
+---
+
+# 16. Marketplace Expansion (Future)
+
+External caregivers may:
+
+- register homes
+- set availability
+- define pricing
+- accept bookings
+
+Requires identity verification and ratings.
+
+---
+
+# 17. Development Strategy
+
+Human role:
+- define vision
+- guide architecture
+
+AI role:
+- assist coding
+- refactor
+- analyze
+
+Agents extend the system following this architecture.
 
 ---
 
