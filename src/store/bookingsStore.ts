@@ -59,6 +59,15 @@ function fixDuplicateIds(list: Booking[]) {
   return { fixed, changed };
 }
 
+function mergeHydratedBookings(current: Booking[], hydrated: Booking[]) {
+  const currentIds = new Set(current.map((booking) => booking.id));
+
+  return [
+    ...current,
+    ...hydrated.filter((booking) => !currentIds.has(booking.id)),
+  ];
+}
+
 export const useBookingsStore = create<BookingsState>((set, get) => ({
   bookings: [],
   hydrated: false,
@@ -103,7 +112,10 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
       const parsed = raw ? (JSON.parse(raw) as Booking[]) : [];
       const { fixed, changed } = fixDuplicateIds(parsed);
 
-      set({ bookings: fixed, hydrated: true });
+      set((state) => ({
+        bookings: mergeHydratedBookings(state.bookings, fixed),
+        hydrated: true,
+      }));
       if (changed)
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(fixed));
     } catch {
@@ -116,3 +128,4 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
     set({ bookings: [] });
   },
 }));
+
