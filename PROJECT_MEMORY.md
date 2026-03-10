@@ -4,7 +4,7 @@
 
 TioPet is an Expo / React Native MVP application focused on pet care services such as daycare, boarding, and future caregiver services.
 
-The project currently prioritizes a **local-first MVP approach** where core functionality works without requiring a full backend platform.
+The project currently prioritizes a local-first MVP approach where core functionality works without requiring a full backend platform.
 
 State is primarily managed with Zustand and AsyncStorage, while Firebase is currently used mainly for authentication.
 
@@ -12,9 +12,9 @@ The booking flow, pet registration, and booking history are the most developed a
 
 ---
 
-# Current Architecture Direction
+## Current Architecture Direction
 
-The project follows an **incremental architecture strategy**:
+The project follows an incremental architecture strategy:
 
 1. Stabilize the working MVP
 2. Extract domain logic from UI screens
@@ -26,9 +26,9 @@ Large rewrites are intentionally avoided.
 
 ---
 
-# Agent Development Model
+## Agent Development Model
 
-The repository uses an **agent-assisted development workflow**.
+The repository uses an agent-assisted development workflow.
 
 Agent roles are defined in the `skills/` directory:
 
@@ -46,27 +46,39 @@ These agents collaborate under the rules defined in:
 
 ---
 
-# Known Blockers
+## Known Blockers
 
-## Google OAuth
+### Google OAuth
 
-Google authentication is currently unstable and should not block unrelated MVP work.
+Google authentication is currently optional and should not block unrelated MVP work.
 
-The current recommended approach is **anonymous-first authentication** until the rest of the MVP stabilizes.
+The current supported approach is anonymous-first authentication until the rest of the MVP stabilizes.
+
+### Office Mobile QR / Expo Go
+
+Expo Go QR access is currently unreliable in the office environment and appears to be affected by endpoint/network security controls.
+
+This is considered an environment issue, not a core application logic blocker.
+
+### TypeScript Validation Environment
+
+Full typecheck is not yet clean because the repository still has pre-existing unrelated path-alias/type issues outside the recent booking refactor scope.
 
 ---
 
-# Confirmed Technical Decisions
+## Confirmed Technical Decisions
 
-- The app remains **Expo Router based**
+- The app remains Expo Router based
 - TypeScript strict mode should be preserved
 - Zustand + AsyncStorage remain the primary local persistence layer
 - Firebase usage should remain minimal until domain boundaries are cleaner
 - Booking logic should not live directly inside large screen components
+- Google auth must not crash render when env configuration is missing
+- Shared booking domain rules should be extracted into reusable typed modules under `src/domain/bookings/`
 
 ---
 
-# Current MVP Capabilities
+## Current MVP Capabilities
 
 Working today:
 
@@ -77,12 +89,14 @@ Working today:
 - booking confirmation
 - booking history
 - profile screen
+- extracted booking domain modules reused by the booking screen
 
 Partially implemented:
 
 - Google authentication
 - transport screen
 - shop screen
+- booking history actions (confirm / cancel) need review
 
 Not implemented yet:
 
@@ -95,29 +109,46 @@ Not implemented yet:
 
 ---
 
-# Next Planned Task
+## Recent Completed Steps
 
-The next architectural improvement is:
-
-**Extract booking domain data and rules from `app/(tabs)/bookings.tsx` into reusable typed modules.**
-
-Examples of items to extract:
-
-- service plans
-- cities
-- care time options
-- transport options
-- pricing rules
-- date helpers
-- booking-related types
-
-This change should **not modify user-facing behavior**.
+- Added `AGENTS.md`
+- Added `MVP_ROADMAP.md`
+- Added `NEXT_TASK.md`
+- Added agent skill definitions in `skills/`
+- Added repository project memory
+- Configured Firebase environment variables through `.env`
+- Fixed app startup so missing Google env configuration no longer crashes render
+- Extracted booking domain logic from `app/(tabs)/bookings.tsx` into `src/domain/bookings/`
+- Added reusable typed modules for booking plans, options, pricing, dates, labels, and types
+- Hardened booking pricing fallbacks so invalid runtime values no longer produce `NaN`
+- Manually validated the main booking flow in web:
+  - anonymous login works
+  - pet creation works
+  - pet edit works
+  - booking creation works
+  - booking confirmation works
+  - booking appears in history as pending
 
 ---
 
-# Development Philosophy
+## Next Planned Task
 
-TioPet should evolve through **small, safe, incremental improvements**.
+The next architectural/product improvement is:
+
+**Analyze and fix why booking actions in the history tab (such as confirm or cancel) are not working as expected.**
+
+Focus files:
+
+- `app/(tabs)/history.tsx`
+- `src/store/bookingsStore.ts`
+
+The goal is to restore expected booking action behavior with the smallest safe fix.
+
+---
+
+## Development Philosophy
+
+TioPet should evolve through small, safe, incremental improvements.
 
 The priority is:
 

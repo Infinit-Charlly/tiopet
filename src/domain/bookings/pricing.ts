@@ -14,6 +14,16 @@ const TRANSPORT_SURCHARGES: Record<TransportType, number> = {
 
 const VET_CHECK_PRICE = 8;
 
+function getSurcharge<T extends string>(
+  surcharges: Record<T, number>,
+  value: string | null | undefined
+) {
+  return typeof value === "string" &&
+    Object.prototype.hasOwnProperty.call(surcharges, value)
+    ? surcharges[value as T]
+    : 0;
+}
+
 export function moneyUSD(value: number) {
   return new Intl.NumberFormat("es-EC", {
     style: "currency",
@@ -35,9 +45,11 @@ export function calculateBookingTotal({
   transportNeeded: boolean;
   transportType: TransportType;
 }) {
-  const cityAdj = CITY_SURCHARGES[city];
+  const cityAdj = getSurcharge(CITY_SURCHARGES, city);
   const vetAdj = vetCheck ? VET_CHECK_PRICE : 0;
-  const transportAdj = transportNeeded ? TRANSPORT_SURCHARGES[transportType] : 0;
+  const transportAdj = transportNeeded
+    ? getSurcharge(TRANSPORT_SURCHARGES, transportType)
+    : 0;
 
   return basePrice + cityAdj + vetAdj + transportAdj;
 }
