@@ -7,23 +7,24 @@ import { auth } from "../lib/firebase";
 WebBrowser.maybeCompleteAuthSession();
 
 const EXPO_PROXY_REDIRECT_URI = "https://auth.expo.io/@charllytwin/tiopet";
+const GOOGLE_WEB_CLIENT_ID_PLACEHOLDER = "google-auth-disabled";
 
 export function useGoogleAuth() {
   const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
   const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-
-  if (!webClientId)
-    throw new Error("Falta EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID en .env");
+  const isGoogleAuthConfigured = Boolean(webClientId);
 
   // Para Expo Go: usa el WEB client id + redirectUri del proxy
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: webClientId,
+    clientId: webClientId ?? GOOGLE_WEB_CLIENT_ID_PLACEHOLDER,
     iosClientId,
     redirectUri: EXPO_PROXY_REDIRECT_URI,
     scopes: ["profile", "email"],
   });
 
   const signInWithGoogle = async () => {
+    if (!isGoogleAuthConfigured) return null;
+
     const res = await promptAsync();
 
     if (res.type !== "success") return null;
@@ -33,7 +34,7 @@ export function useGoogleAuth() {
 
     if (!idToken) {
       throw new Error(
-        "Google no devolvió id_token. Revisa redirectUri y clientId.",
+        "Google no devolvio id_token. Revisa redirectUri y clientId.",
       );
     }
 
@@ -41,5 +42,9 @@ export function useGoogleAuth() {
     return signInWithCredential(auth, credential);
   };
 
-  return { request, response, signInWithGoogle };
+  return {
+    request: isGoogleAuthConfigured ? request : null,
+    response: isGoogleAuthConfigured ? response : null,
+    signInWithGoogle,
+  };
 }

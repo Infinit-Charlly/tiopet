@@ -13,93 +13,33 @@ import {
   View,
 } from "react-native";
 
-import { usePetsStore } from "../../src/store/petsStore";
+import {
+  calculateBookingTotal,
+  CITY_OPTIONS,
+  CUSTOM_DATE_PICK,
+  DATE_PICK_OPTIONS,
+  formatBookingDateLabel,
+  getCareTimeLabel,
+  getDateForPresetPick,
+  getPlanById,
+  getPlanHighlightIcon,
+  getPlanIcon,
+  getTransportLabel,
+  moneyUSD,
+  PLANS,
+  TRANSPORT_OPTIONS,
+  type CareTime,
+  type City,
+  type DatePick,
+  type Plan,
+  type PlanId,
+  type TransportType,
+} from "../../src/domain/bookings";
+import { usePetsStore, type Pet } from "../../src/store/petsStore";
 import { theme } from "../../src/theme/theme";
 import { Button } from "../../src/ui/Button";
 import { Card } from "../../src/ui/Card";
 import { Screen } from "../../src/ui/Screen";
-
-type City = "Latacunga" | "Quito" | "Porto Viejo";
-type DatePick = "Hoy" | "Mañana" | "Este sábado" | "Otra fecha";
-
-type PlanId = "bb" | "consientan" | "principe";
-type CareTime = "day" | "full";
-type TransportType = "ida" | "vuelta" | "ida_vuelta";
-
-type Plan = {
-  id: PlanId;
-  name: string;
-  tagline: string;
-  basePrice: number; // USD
-  includes: string[];
-  highlight?: string;
-};
-
-const PLANS: Plan[] = [
-  {
-    id: "bb",
-    name: "Cuíden a mi BB",
-    tagline: "Cuidado esencial con amor y seguridad.",
-    basePrice: 7,
-    includes: [
-      "Camita + sombra + descanso seguro",
-      "Agua fresca permanente",
-      "Comida estándar",
-      "Patio / espacio de relajación",
-      "Reporte básico del día",
-    ],
-  },
-  {
-    id: "consientan",
-    name: "Consientan a mi peludo",
-    tagline: "Más atención, paseo y evidencia para tu tranquilidad.",
-    basePrice: 12,
-    includes: [
-      "Todo lo del plan BB",
-      "Paseo con evidencia (foto/video)",
-      "Baño básico",
-      "Comida orgánica adaptada (tamaño/edad)",
-      "Reporte detallado + fotos",
-    ],
-    highlight: "Recomendado",
-  },
-  {
-    id: "principe",
-    name: "Príncipe del Hogar",
-    tagline: "VIP total: mimos, grooming y recogida/entrega.",
-    basePrice: 22,
-    includes: [
-      "Todo lo del plan Consientan",
-      "Snacks premium (aprobados por ti)",
-      "Grooming completo / corte básico",
-      "Juguetes + juegos guiados + mimos",
-      "Transporte incluido (recogida/entrega)",
-      "Reporte completo + video",
-    ],
-    highlight: "Premium",
-  },
-];
-
-function moneyUSD(value: number) {
-  return new Intl.NumberFormat("es-EC", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(value);
-}
-
-function addDays(base: Date, days: number) {
-  const d = new Date(base);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
-function nextSaturday(base: Date) {
-  const d = new Date(base);
-  const day = d.getDay(); // 0=domingo ... 6=sábado
-  const diff = (6 - day + 7) % 7;
-  return addDays(d, diff === 0 ? 7 : diff);
-}
 
 function Pill({
   label,
@@ -197,7 +137,7 @@ function PlanCard({
               }}
             >
               <MaterialCommunityIcons
-                name={plan.id === "consientan" ? "heart" : "crown"}
+                name={getPlanHighlightIcon(plan.id)}
                 size={14}
                 color={theme.colors.warn}
               />
@@ -252,7 +192,7 @@ function PetCard({
   accentBorder,
   accentBg,
 }: {
-  pet: any;
+  pet: Pet;
   selected: boolean;
   onPress: () => void;
   accentBorder: string;
@@ -405,41 +345,11 @@ export default function BookingsScreen() {
   const [customDate, setCustomDate] = useState<Date | null>(new Date());
   const [showPicker, setShowPicker] = useState(false);
 
-  const planIcon =
-    planId === "bb"
-      ? "shield-check"
-      : planId === "consientan"
-        ? "heart"
-        : "crown";
+  const planIcon = getPlanIcon(planId);
+  const careTimeLabel = getCareTimeLabel(careTime);
+  const dateLabel = formatBookingDateLabel(datePick, customDate);
 
-  const careTimeLabel =
-    careTime === "day"
-      ? "Día laboral (08:30 – 18:00)"
-      : careTime === "full"
-        ? "24 horas (Hospedaje)"
-        : "— (elige uno)";
-
-  function formatDateLabel() {
-    const d = customDate ?? new Date();
-
-    const options: Intl.DateTimeFormatOptions = {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-    };
-
-    const formatted = d.toLocaleDateString("es-EC", options);
-
-    if (datePick === "Hoy") return `Hoy · ${formatted}`;
-    if (datePick === "Mañana") return `Mañana · ${formatted}`;
-    if (datePick === "Este sábado") return `Este sábado · ${formatted}`;
-    return `Otra fecha · ${formatted}`;
-  }
-
-  const selectedPlan = useMemo(
-    () => PLANS.find((p) => p.id === planId) ?? PLANS[0],
-    [planId],
-  );
+  const selectedPlan = useMemo(() => getPlanById(planId), [planId]);
 
   const selectedPet = useMemo(
     () => pets.find((p) => p.id === petId) ?? null,
@@ -462,14 +372,13 @@ export default function BookingsScreen() {
   const canContinue = Boolean(selectedPet) && Boolean(careTime);
 
   const total = useMemo(() => {
-    const cityAdj = city === "Quito" ? 1 : city === "Porto Viejo" ? 1 : 0;
-    const vet = vetCheck ? 8 : 0;
-    const transportAdj = transportNeeded
-      ? transportType === "ida_vuelta"
-        ? 4
-        : 2
-      : 0;
-    return selectedPlan.basePrice + cityAdj + vet + transportAdj;
+    return calculateBookingTotal({
+      basePrice: selectedPlan.basePrice,
+      city,
+      vetCheck,
+      transportNeeded,
+      transportType,
+    });
   }, [selectedPlan, city, vetCheck, transportNeeded, transportType]);
 
   return (
@@ -782,32 +691,21 @@ export default function BookingsScreen() {
                 flexWrap: "wrap",
               }}
             >
-              <Pill
-                label="Solo ida"
-                active={transportType === "ida"}
-                onPress={() => setTransportType("ida")}
-                accentBorder={accent.border}
-                accentBg={accent.bg}
-              />
-              <Pill
-                label="Solo vuelta"
-                active={transportType === "vuelta"}
-                onPress={() => setTransportType("vuelta")}
-                accentBorder={accent.border}
-                accentBg={accent.bg}
-              />
-              <Pill
-                label="Ida y vuelta"
-                active={transportType === "ida_vuelta"}
-                onPress={() => setTransportType("ida_vuelta")}
-                accentBorder={accent.border}
-                accentBg={accent.bg}
-              />
+              {TRANSPORT_OPTIONS.map((option) => (
+                <Pill
+                  key={option.value}
+                  label={option.label}
+                  active={transportType === option.value}
+                  onPress={() => setTransportType(option.value)}
+                  accentBorder={accent.border}
+                  accentBg={accent.bg}
+                />
+              ))}
             </View>
           ) : null}
 
           <Text style={{ color: theme.colors.muted, marginTop: 10 }}>
-            * Luego lo hacemos pro con horarios + dirección + precio.
+            {"* Luego lo hacemos pro con horarios + dirección + precio."}
           </Text>
         </Card>
 
@@ -831,27 +729,16 @@ export default function BookingsScreen() {
               flexWrap: "wrap",
             }}
           >
-            <Pill
-              label="Latacunga"
-              active={city === "Latacunga"}
-              onPress={() => setCity("Latacunga")}
-              accentBorder={accent.border}
-              accentBg={accent.bg}
-            />
-            <Pill
-              label="Quito"
-              active={city === "Quito"}
-              onPress={() => setCity("Quito")}
-              accentBorder={accent.border}
-              accentBg={accent.bg}
-            />
-            <Pill
-              label="Porto Viejo"
-              active={city === "Porto Viejo"}
-              onPress={() => setCity("Porto Viejo")}
-              accentBorder={accent.border}
-              accentBg={accent.bg}
-            />
+            {CITY_OPTIONS.map((option) => (
+              <Pill
+                key={option}
+                label={option}
+                active={city === option}
+                onPress={() => setCity(option)}
+                accentBorder={accent.border}
+                accentBg={accent.bg}
+              />
+            ))}
           </View>
         </Card>
 
@@ -875,40 +762,23 @@ export default function BookingsScreen() {
               flexWrap: "wrap",
             }}
           >
-            <Pill
-              label="Hoy"
-              active={datePick === "Hoy"}
-              onPress={() => {
-                setDatePick("Hoy");
-                setCustomDate(new Date());
-              }}
-              accentBorder={accent.border}
-              accentBg={accent.bg}
-            />
-            <Pill
-              label="Mañana"
-              active={datePick === "Mañana"}
-              onPress={() => {
-                setDatePick("Mañana");
-                setCustomDate(addDays(new Date(), 1));
-              }}
-              accentBorder={accent.border}
-              accentBg={accent.bg}
-            />
-            <Pill
-              label="Este sábado"
-              active={datePick === "Este sábado"}
-              onPress={() => {
-                setDatePick("Este sábado");
-                setCustomDate(nextSaturday(new Date()));
-              }}
-              accentBorder={accent.border}
-              accentBg={accent.bg}
-            />
+            {DATE_PICK_OPTIONS.map((option) => (
+              <Pill
+                key={option}
+                label={option}
+                active={datePick === option}
+                onPress={() => {
+                  setDatePick(option);
+                  setCustomDate(getDateForPresetPick(option));
+                }}
+                accentBorder={accent.border}
+                accentBg={accent.bg}
+              />
+            ))}
 
             <Pressable
               onPress={() => {
-                setDatePick("Otra fecha");
+                setDatePick(CUSTOM_DATE_PICK);
                 setShowPicker(true);
               }}
               style={{
@@ -921,12 +791,12 @@ export default function BookingsScreen() {
               }}
             >
               <Text style={{ color: theme.colors.text, fontWeight: "900" }}>
-                📅 Elegir otra fecha
+                {"📅 Elegir otra fecha"}
               </Text>
 
               <Text style={{ color: theme.colors.muted, marginTop: 6 }}>
                 {customDate
-                  ? `Seleccionada: ${formatDateLabel()}`
+                  ? "Seleccionada: " + dateLabel
                   : "Si no es hoy/mañana/sábado, elige aquí"}
               </Text>
             </Pressable>
@@ -1126,22 +996,14 @@ export default function BookingsScreen() {
 
             <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
               <Chip icon="map-marker" label="Ciudad" value={city} />
-              <Chip icon="calendar" label="Fecha" value={formatDateLabel()} />
+              <Chip icon="calendar" label="Fecha" value={dateLabel} />
             </View>
 
             <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
               <Chip
                 icon="car"
                 label="Transporte"
-                value={
-                  transportNeeded
-                    ? transportType === "ida"
-                      ? "Solo ida"
-                      : transportType === "vuelta"
-                        ? "Solo vuelta"
-                        : "Ida y vuelta"
-                    : "No"
-                }
+                value={getTransportLabel(transportNeeded, transportType)}
               />
             </View>
           </View>
@@ -1189,7 +1051,7 @@ export default function BookingsScreen() {
                     careTime,
                     careTimeLabel,
                     city,
-                    dateLabel: formatDateLabel(),
+                    dateLabel,
                     totalUSD: moneyUSD(total),
                     transportNeeded: String(transportNeeded),
                     transportType,
