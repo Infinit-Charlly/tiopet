@@ -133,38 +133,33 @@ function Line({
   );
 }
 
-function TimelineRow({
-  event,
-  showConnector,
-}: {
-  event: Booking["timeline"][number];
-  showConnector: boolean;
-}) {
+function TimelineRow({ event }: { event: Booking["timeline"][number] }) {
   return (
     <View
       style={{
         flexDirection: "row",
-        alignItems: "stretch",
-        gap: 10,
-        paddingBottom: showConnector ? 10 : 0,
+        alignItems: "flex-start",
+        gap: 12,
+        minHeight: 44,
       }}
     >
       <View
         style={{
           alignItems: "center",
-          width: 28,
+          justifyContent: "flex-start",
+          width: 30,
         }}
       >
         <View
           style={{
-            width: 28,
-            height: 28,
-            borderRadius: 14,
+            width: 30,
+            height: 30,
+            borderRadius: 15,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: theme.colors.surface,
+            backgroundColor: "rgba(87,215,255,0.12)",
             borderWidth: 1,
-            borderColor: theme.colors.line,
+            borderColor: "rgba(87,215,255,0.34)",
           }}
         >
           <MaterialCommunityIcons
@@ -173,22 +168,9 @@ function TimelineRow({
             color={theme.colors.warn}
           />
         </View>
-
-        {showConnector ? (
-          <View
-            style={{
-              marginTop: 4,
-              width: 2,
-              flex: 1,
-              minHeight: 10,
-              borderRadius: 999,
-              backgroundColor: "rgba(255,255,255,0.08)",
-            }}
-          />
-        ) : null}
       </View>
 
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingTop: 2 }}>
         <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
           {getTimelineEventLabel(event.type)}
         </Text>
@@ -506,16 +488,39 @@ export default function HistoryScreen() {
                         Timeline
                       </Text>
 
-                      {timelinePreview.map((event, index) => (
-                        <TimelineRow
-                          key={event.id}
-                          event={event}
-                          showConnector={index < timelinePreview.length - 1}
+                      <View
+                        style={{
+                          marginTop: 10,
+                          position: "relative",
+                          gap: 12,
+                        }}
+                      >
+                        <View
+                          pointerEvents="none"
+                          style={{
+                            position: "absolute",
+                            left: 14,
+                            top: 6,
+                            bottom: 6,
+                            width: 2,
+                            borderRadius: 999,
+                            backgroundColor: "rgba(255,255,255,0.10)",
+                          }}
                         />
-                      ))}
+
+                        {timelinePreview.map((event) => (
+                          <TimelineRow key={event.id} event={event} />
+                        ))}
+                      </View>
 
                       {booking.timeline.length > timelinePreview.length ? (
-                        <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
+                        <Text
+                          style={{
+                            color: theme.colors.muted,
+                            fontSize: 12,
+                            marginTop: 10,
+                          }}
+                        >
                           +{booking.timeline.length - timelinePreview.length} evento(s) más
                         </Text>
                       ) : null}
