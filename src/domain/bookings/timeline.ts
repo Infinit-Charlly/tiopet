@@ -1,6 +1,9 @@
 const CARE_TIMELINE_EVENT_TYPES = [
   "booking_created",
+  "booking_confirmed",
   "booking_cancelled",
+  "check_in",
+  "check_out",
   "feeding",
   "snack",
   "water",
@@ -117,9 +120,33 @@ export function createBookingCreatedEvent(createdAtISO?: string) {
   });
 }
 
+export function createBookingConfirmedEvent(createdAtISO?: string) {
+  return createTimelineEvent({
+    type: "booking_confirmed",
+    actor: "system",
+    createdAtISO,
+  });
+}
+
 export function createBookingCancelledEvent(createdAtISO?: string) {
   return createTimelineEvent({
     type: "booking_cancelled",
+    actor: "system",
+    createdAtISO,
+  });
+}
+
+export function createCheckInEvent(createdAtISO?: string) {
+  return createTimelineEvent({
+    type: "check_in",
+    actor: "system",
+    createdAtISO,
+  });
+}
+
+export function createCheckOutEvent(createdAtISO?: string) {
+  return createTimelineEvent({
+    type: "check_out",
     actor: "system",
     createdAtISO,
   });
@@ -129,7 +156,10 @@ export function normalizeTimelineEvents(
   value: unknown,
   fallbackCreatedAtISO: string,
   options?: {
+    includeConfirmedEvent?: boolean;
     includeCancelledEvent?: boolean;
+    includeCheckInEventAtISO?: string;
+    includeCheckOutEventAtISO?: string;
   },
 ) {
   const events = Array.isArray(value)
@@ -143,10 +173,31 @@ export function normalizeTimelineEvents(
   }
 
   if (
+    options?.includeConfirmedEvent &&
+    !events.some((event) => event.type === "booking_confirmed")
+  ) {
+    events.push(createBookingConfirmedEvent(fallbackCreatedAtISO));
+  }
+
+  if (
     options?.includeCancelledEvent &&
     !events.some((event) => event.type === "booking_cancelled")
   ) {
     events.push(createBookingCancelledEvent(fallbackCreatedAtISO));
+  }
+
+  if (
+    options?.includeCheckInEventAtISO &&
+    !events.some((event) => event.type === "check_in")
+  ) {
+    events.push(createCheckInEvent(options.includeCheckInEventAtISO));
+  }
+
+  if (
+    options?.includeCheckOutEventAtISO &&
+    !events.some((event) => event.type === "check_out")
+  ) {
+    events.push(createCheckOutEvent(options.includeCheckOutEventAtISO));
   }
 
   return sortTimelineEvents(events);
@@ -156,8 +207,14 @@ export function getTimelineEventLabel(type: CareTimelineEventType) {
   switch (type) {
     case "booking_created":
       return "Reserva creada";
+    case "booking_confirmed":
+      return "Reserva confirmada";
     case "booking_cancelled":
       return "Reserva cancelada";
+    case "check_in":
+      return "Check-in";
+    case "check_out":
+      return "Check-out";
     case "feeding":
       return "Alimentacion";
     case "snack":
@@ -197,8 +254,14 @@ export function getTimelineEventIcon(type: CareTimelineEventType) {
   switch (type) {
     case "booking_created":
       return "playlist-plus";
+    case "booking_confirmed":
+      return "check-decagram";
     case "booking_cancelled":
       return "calendar-remove";
+    case "check_in":
+      return "login";
+    case "check_out":
+      return "logout";
     case "feeding":
       return "food-drumstick";
     case "snack":

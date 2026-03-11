@@ -1,8 +1,10 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 
 import {
+  getBookingQrPhaseLabel,
   getTimelineEventIcon,
   getTimelineEventLabel,
 } from "../../src/domain/bookings";
@@ -76,7 +78,7 @@ function Pill({
 }
 
 function transportLabel(type?: Booking["transportType"]) {
-  if (!type) return "—";
+  if (!type) return "-";
   if (type === "ida") return "Solo ida";
   if (type === "vuelta") return "Solo vuelta";
   return "Ida y vuelta";
@@ -93,7 +95,7 @@ function formatCreatedAt(iso: string) {
       minute: "2-digit",
     });
   } catch {
-    return "—";
+    return "-";
   }
 }
 
@@ -188,6 +190,7 @@ function TimelineRow({ event }: { event: Booking["timeline"][number] }) {
 }
 
 export default function HistoryScreen() {
+  const router = useRouter();
   const bookings = useBookingsStore((state) => state.bookings);
   const confirmBooking = useBookingsStore((state) => state.confirmBooking);
   const cancelBooking = useBookingsStore((state) => state.cancelBooking);
@@ -228,11 +231,11 @@ export default function HistoryScreen() {
       [
         { text: "Volver", style: "cancel" },
         {
-          text: "Sí, cancelar",
+          text: "Si, cancelar",
           style: "destructive",
           onPress: () => {
             cancelBooking(id);
-            Alert.alert("Listo", "Reserva cancelada ❌");
+            Alert.alert("Listo", "Reserva cancelada");
           },
         },
       ],
@@ -242,14 +245,14 @@ export default function HistoryScreen() {
   const askConfirm = (id: string) => {
     Alert.alert(
       "Confirmar reserva",
-      "Confirmamos esta reserva?\n\nPasara a estado \"Confirmada\".",
+      'Confirmamos esta reserva?\n\nPasara a estado "Confirmada".',
       [
         { text: "Volver", style: "cancel" },
         {
-          text: "Sí, confirmar",
+          text: "Si, confirmar",
           onPress: () => {
             confirmBooking(id);
-            Alert.alert("Perfecto", "Reserva confirmada ✅");
+            Alert.alert("Perfecto", "Reserva confirmada");
           },
         },
       ],
@@ -265,7 +268,7 @@ export default function HistoryScreen() {
           Historial
         </Text>
         <Text style={{ color: theme.colors.muted, marginTop: 6 }}>
-          Tus reservas, tu rastro… tu leyenda 🐾
+          Tus reservas y el estado local de su QR.
         </Text>
 
         <Card style={{ marginTop: theme.spacing(3) }}>
@@ -342,7 +345,7 @@ export default function HistoryScreen() {
 
             {filtered.length > 5 ? (
               <Button
-                title={showAll ? "Ver menos" : "Ver más"}
+                title={showAll ? "Ver menos" : "Ver mas"}
                 variant="secondary"
                 onPress={() => setShowAll((value) => !value)}
                 style={{ paddingVertical: 10, paddingHorizontal: 12 }}
@@ -353,7 +356,7 @@ export default function HistoryScreen() {
 
           {filtered.length === 0 ? (
             <Text style={{ color: theme.colors.muted, marginTop: 10 }}>
-              Aquí aparecerán tus reservas. Crea una en Reservar 😄
+              Aqui apareceran tus reservas. Crea una en Reservar.
             </Text>
           ) : (
             <View style={{ marginTop: 12, gap: 10 }}>
@@ -361,7 +364,7 @@ export default function HistoryScreen() {
                 const meta = statusMeta(booking.status);
                 const careTimeLabel =
                   booking.careTime === "day"
-                    ? "Día laboral (08:30 – 18:00)"
+                    ? "Dia laboral (08:30 - 18:00)"
                     : "24 horas (Hospedaje)";
                 const transportText = booking.transportNeeded
                   ? transportLabel(booking.transportType)
@@ -454,7 +457,7 @@ export default function HistoryScreen() {
                     <Line
                       icon="calendar"
                       label="Servicio"
-                      value={`${booking.city} · ${booking.dateLabel}`}
+                      value={`${booking.city} � ${booking.dateLabel}`}
                       valueStrong
                     />
                     <Line
@@ -468,6 +471,11 @@ export default function HistoryScreen() {
                     </Text>
 
                     <Line icon="car" label="Transporte" value={transportText} />
+                    <Line
+                      icon="qrcode"
+                      label="QR"
+                      value={getBookingQrPhaseLabel(booking.qr.phase)}
+                    />
 
                     <View
                       style={{
@@ -521,7 +529,7 @@ export default function HistoryScreen() {
                             marginTop: 10,
                           }}
                         >
-                          +{booking.timeline.length - timelinePreview.length} evento(s) más
+                          +{booking.timeline.length - timelinePreview.length} evento(s) mas
                         </Text>
                       ) : null}
                     </View>
@@ -551,6 +559,21 @@ export default function HistoryScreen() {
                       </Text>
                     </View>
 
+                    {booking.status !== "cancelada" ? (
+                      <View style={{ marginTop: 12 }}>
+                        <Button
+                          title="Ver QR"
+                          variant="secondary"
+                          onPress={() =>
+                            router.push({
+                              pathname: "/booking-qr",
+                              params: { bookingId: booking.id },
+                            })
+                          }
+                        />
+                      </View>
+                    ) : null}
+
                     {canAct ? (
                       <View
                         style={{
@@ -562,7 +585,7 @@ export default function HistoryScreen() {
                         <View style={{ flex: 1 }}>
                           <HoldButton
                             title="Confirmar"
-                            hint="Mantén"
+                            hint="Manten"
                             variant="success"
                             holdMs={850}
                             onComplete={() => askConfirm(booking.id)}
@@ -572,7 +595,7 @@ export default function HistoryScreen() {
                         <View style={{ flex: 1 }}>
                           <HoldButton
                             title="Cancelar"
-                            hint="Mantén"
+                            hint="Manten"
                             variant="danger"
                             holdMs={850}
                             onComplete={() => askCancel(booking.id)}

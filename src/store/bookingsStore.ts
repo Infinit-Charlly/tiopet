@@ -2,17 +2,32 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 
 import {
+  activateBookingQr,
+  consumeBookingQr as consumeBookingQrState,
   createBookingCancelledEvent,
+  createBookingConfirmedEvent,
+  createCheckInEvent,
+  createCheckOutEvent,
   createTimelineEvent,
+  disableBookingQr,
+  normalizeBookingQrState,
   normalizeTimelineEvents,
   sortTimelineEvents,
+  type BookingQrConsumeError,
+  type BookingQrIntent,
+  type BookingQrState,
   type CareTimelineEvent,
   type CareTimelineEventInput,
   type TransportType,
 } from "../domain/bookings";
 
 export type BookingStatus = "pendiente" | "confirmada" | "cancelada";
-export type { TransportType } from "../domain/bookings";
+export type {
+  BookingQrIntent,
+  BookingQrPhase,
+  BookingQrState,
+  TransportType,
+} from "../domain/bookings";
 
 export type Booking = {
   id: string;
@@ -29,8 +44,19 @@ export type Booking = {
   createdAtISO: string;
   transportNeeded?: boolean;
   transportType?: TransportType;
+  qr: BookingQrState;
   timeline: CareTimelineEvent[];
 };
+
+export type ConsumeBookingQrResult =
+  | {
+      ok: true;
+      phase: BookingQrState["phase"];
+    }
+  | {
+      ok: false;
+      reason: BookingQrConsumeError | "booking_not_found";
+    };
 
 type BookingsState = {
   bookings: Booking[];
@@ -40,6 +66,11 @@ type BookingsState = {
   confirmBooking: (id: string) => void;
   cancelBooking: (id: string) => void;
   addTimelineEvent: (bookingId: string, event: CareTimelineEventInput) => void;
+  consumeBookingQr: (
+    bookingId: string,
+    intent: BookingQrIntent,
+    token: string,
+  ) => ConsumeBookingQrResult;
 
   hydrate: () => Promise<void>;
   persist: () => Promise<void>;
@@ -96,15 +127,33 @@ function normalizeTransportType(value: unknown) {
 function normalizeHydratedBooking(
   raw: Partial<Booking> & Record<string, unknown>,
 ): Booking {
+  const id =
+    typeof raw.id === "string" && raw.id.length > 0 ? raw.id : makeId("b");
   const createdAtISO =
     typeof raw.createdAtISO === "string" && raw.createdAtISO.length > 0
       ? raw.createdAtISO
       : new Date().toISOString();
   const status = normalizeBookingStatus(raw.status);
   const transportNeeded = raw.transportNeeded === true;
+  const timelineBase = normalizeTimelineEvents(raw.timeline, createdAtISO, {
+    includeConfirmedEvent: status === "confirmada",
+    includeCancelledEvent: status === "cancelada",
+  });
+  const qr = normalizeBookingQrState(raw.qr, {
+    bookingId: id,
+    createdAtISO,
+    status,
+    timeline: timelineBase,
+  });
+  const timeline = normalizeTimelineEvents(timelineBase, createdAtISO, {
+    includeConfirmedEvent: status === "confirmada",
+    includeCancelledEvent: status === "cancelada",
+    includeCheckInEventAtISO: qr.checkIn.consumedAtISO,
+    includeCheckOutEventAtISO: qr.checkOut.consumedAtISO,
+  });
 
   return {
-    id: typeof raw.id === "string" && raw.id.length > 0 ? raw.id : makeId("b"),
+    id,
     petId:
       typeof raw.petId === "string" && raw.petId.length > 0
         ? raw.petId
@@ -126,9 +175,8 @@ function normalizeHydratedBooking(
     transportType: transportNeeded
       ? normalizeTransportType(raw.transportType)
       : undefined,
-    timeline: normalizeTimelineEvents(raw.timeline, createdAtISO, {
-      includeCancelledEvent: status === "cancelada",
-    }),
+    qr,
+    timeline,
   };
 }
 
@@ -160,28 +208,59 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
   },
 
   confirmBooking: (id) => {
+    const confirmedAtISO = new Date().toISOString();
+    let didChange = false;
+
     set((state) => ({
-      bookings: state.bookings.map((booking) =>
-        booking.id === id && booking.status === "pendiente"
-          ? { ...booking, status: "confirmada" }
-          : booking,
-      ),
+      bookings: state.bookings.map((booking) => {
+        if (booking.id !== id || booking.status !== "pendiente") {
+          return booking;
+        }
+
+        didChange = true;
+
+        return appendTimelineEvent(
+          {
+            ...booking,
+            status: "confirmada",
+            qr: activateBookingQr(booking.qr, confirmedAtISO),
+          },
+          createBookingConfirmedEvent(confirmedAtISO),
+        );
+      }),
     }));
-    void get().persist();
+
+    if (didChange) {
+      void get().persist();
+    }
   },
 
   cancelBooking: (id) => {
+    const cancelledAtISO = new Date().toISOString();
+    let didChange = false;
+
     set((state) => ({
-      bookings: state.bookings.map((booking) =>
-        booking.id === id && booking.status === "pendiente"
-          ? appendTimelineEvent(
-              { ...booking, status: "cancelada" },
-              createBookingCancelledEvent(),
-            )
-          : booking,
-      ),
+      bookings: state.bookings.map((booking) => {
+        if (booking.id !== id || booking.status !== "pendiente") {
+          return booking;
+        }
+
+        didChange = true;
+
+        return appendTimelineEvent(
+          {
+            ...booking,
+            status: "cancelada",
+            qr: disableBookingQr(booking.qr, cancelledAtISO),
+          },
+          createBookingCancelledEvent(cancelledAtISO),
+        );
+      }),
     }));
-    void get().persist();
+
+    if (didChange) {
+      void get().persist();
+    }
   },
 
   addTimelineEvent: (bookingId, event) => {
@@ -191,6 +270,59 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
       ),
     }));
     void get().persist();
+  },
+
+  consumeBookingQr: (bookingId, intent, token) => {
+    let didChange = false;
+    let result: ConsumeBookingQrResult = {
+      ok: false,
+      reason: "booking_not_found",
+    };
+
+    set((state) => ({
+      bookings: state.bookings.map((booking) => {
+        if (booking.id !== bookingId) {
+          return booking;
+        }
+
+        const consumedAtISO = new Date().toISOString();
+        const outcome = consumeBookingQrState(booking.qr, {
+          intent,
+          token,
+          consumedAtISO,
+        });
+
+        if ("reason" in outcome) {
+          result = {
+            ok: false,
+            reason: outcome.reason,
+          };
+          return booking;
+        }
+
+        didChange = true;
+        result = {
+          ok: true,
+          phase: outcome.qr.phase,
+        };
+
+        return appendTimelineEvent(
+          {
+            ...booking,
+            qr: outcome.qr,
+          },
+          intent === "check_in"
+            ? createCheckInEvent(consumedAtISO)
+            : createCheckOutEvent(consumedAtISO),
+        );
+      }),
+    }));
+
+    if (didChange) {
+      void get().persist();
+    }
+
+    return result;
   },
 
   persist: async () => {
@@ -203,7 +335,9 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
       const parsed = raw ? (JSON.parse(raw) as unknown) : [];
       const list = Array.isArray(parsed) ? parsed : [];
       const normalized = list.map((item) =>
-        normalizeHydratedBooking(item as Partial<Booking> & Record<string, unknown>),
+        normalizeHydratedBooking(
+          item as Partial<Booking> & Record<string, unknown>,
+        ),
       );
       const { fixed, changed } = fixDuplicateIds(normalized);
       const nextRaw = JSON.stringify(fixed);
@@ -226,4 +360,3 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
     set({ bookings: [] });
   },
 }));
-

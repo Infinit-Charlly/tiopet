@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useRef } from "react";
 import { ScrollView, Text, View } from "react-native";
 
-import { createBookingCreatedEvent } from "../src/domain/bookings";
+import { createBookingCreatedEvent, createBookingQrState } from "../src/domain/bookings";
 import { TransportType, useBookingsStore } from "../src/store/bookingsStore";
 import { theme } from "../src/theme/theme";
 import { Button } from "../src/ui/Button";
@@ -53,7 +53,7 @@ function formatCreatedAt(iso: string) {
       minute: "2-digit",
     });
   } catch {
-    return "—";
+    return "-";
   }
 }
 
@@ -63,7 +63,7 @@ export default function ConfirmScreen() {
   const params = useLocalSearchParams();
 
   const petId = pickString(params.petId);
-  const petName = pickString(params.petName, "—");
+  const petName = pickString(params.petName, "-");
   const petType = pickEnum<PetType>(params.petType, ["Perro", "Gato"], "Perro");
 
   const planId = pickEnum<PlanId>(
@@ -71,13 +71,13 @@ export default function ConfirmScreen() {
     ["bb", "consientan", "principe"],
     "bb",
   );
-  const planName = pickString(params.planName, "—");
+  const planName = pickString(params.planName, "-");
 
   const careTime = pickEnum<CareTime>(params.careTime, ["day", "full"], "day");
-  const careTimeLabel = pickString(params.careTimeLabel, "—");
+  const careTimeLabel = pickString(params.careTimeLabel, "-");
 
-  const city = pickString(params.city, "—");
-  const dateLabel = pickString(params.dateLabel, "—");
+  const city = pickString(params.city, "-");
+  const dateLabel = pickString(params.dateLabel, "-");
   const totalUSD = pickString(params.totalUSD, "$0.00");
 
   const transportNeeded = pickString(params.transportNeeded, "false") === "true";
@@ -99,10 +99,11 @@ export default function ConfirmScreen() {
     if (confirmedRef.current) return;
     confirmedRef.current = true;
 
+    const bookingId = makeId("b");
     const createdAtISO = new Date().toISOString();
 
     addBooking({
-      id: makeId("b"),
+      id: bookingId,
       petId: petId || undefined,
       petName,
       petType,
@@ -116,6 +117,11 @@ export default function ConfirmScreen() {
       createdAtISO,
       transportNeeded,
       transportType: transportNeeded ? transportType : undefined,
+      qr: createBookingQrState({
+        bookingId,
+        createdAtISO,
+        confirmed: false,
+      }),
       timeline: [createBookingCreatedEvent(createdAtISO)],
     });
 
@@ -143,14 +149,14 @@ export default function ConfirmScreen() {
               fontWeight: "900",
             }}
           >
-            Confirmación
+            Confirmacion
           </Text>
 
           <Text
             style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}
           >
-            Revisa que todo este perfecto. Si esto sale bien, tu peludito sube
-            de rango a VIP.
+            Revisa que todo este perfecto. Al confirmar, dejamos lista la reserva y
+            preparamos su QR local para check-in y check-out.
           </Text>
 
           <Card style={{ marginTop: theme.spacing(2) }}>
@@ -215,6 +221,7 @@ export default function ConfirmScreen() {
                 label="Reserva"
                 value={createdAtPreview}
               />
+              <Row icon="qrcode" label="QR" value="Se activa al confirmar" />
             </View>
 
             <View
@@ -245,8 +252,8 @@ export default function ConfirmScreen() {
 
           <View style={{ marginTop: theme.spacing(2), gap: 10 }}>
             <HoldButton
-              title="Confirmar reserva ✅"
-              hint="Mantén presionado"
+              title="Confirmar reserva"
+              hint="Manten presionado"
               variant="success"
               holdMs={900}
               onComplete={onConfirm}

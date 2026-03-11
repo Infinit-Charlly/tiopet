@@ -132,6 +132,10 @@ Not implemented yet:
   - Added booking lifecycle timeline entries for created and cancelled bookings
   - Manually validated timeline rendering on web and mobile
   - Confirmed Expo mobile QR access is working again
+  - Refined the booking timeline into a shared left-side vertical rail layout for a more premium mobile-first presentation
+  - Implemented local-first QR booking flow with check-in and check-out phases
+  - Added QR lifecycle integration with booking timeline
+  - Added booking QR screen and local validation flow
 
 ---
 
