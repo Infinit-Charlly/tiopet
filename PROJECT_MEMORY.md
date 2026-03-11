@@ -47,7 +47,7 @@ These agents collaborate under the rules defined in:
 ---
 
 ## Known Blockers
-
+- Some web interactions (date picker and hold/cancel UX) behave differently than on mobile and may need web-specific UX adjustments later
 ### Google OAuth
 
 Google authentication is currently optional and should not block unrelated MVP work.
@@ -128,6 +128,10 @@ Not implemented yet:
   - booking creation works
   - booking confirmation works
   - booking appears in history as pending
+  - Implemented local-first Care Timeline system inside bookings
+  - Added booking lifecycle timeline entries for created and cancelled bookings
+  - Manually validated timeline rendering on web and mobile
+  - Confirmed Expo mobile QR access is working again
 
 ---
 

@@ -135,34 +135,57 @@ function Line({
 
 function TimelineRow({
   event,
+  showConnector,
 }: {
   event: Booking["timeline"][number];
+  showConnector: boolean;
 }) {
   return (
     <View
       style={{
         flexDirection: "row",
-        alignItems: "flex-start",
+        alignItems: "stretch",
         gap: 10,
+        paddingBottom: showConnector ? 10 : 0,
       }}
     >
       <View
         style={{
-          width: 28,
-          height: 28,
-          borderRadius: 14,
           alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: theme.colors.surface,
-          borderWidth: 1,
-          borderColor: theme.colors.line,
+          width: 28,
         }}
       >
-        <MaterialCommunityIcons
-          name={getTimelineEventIcon(event.type) as any}
-          size={15}
-          color={theme.colors.warn}
-        />
+        <View
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: theme.colors.surface,
+            borderWidth: 1,
+            borderColor: theme.colors.line,
+          }}
+        >
+          <MaterialCommunityIcons
+            name={getTimelineEventIcon(event.type) as any}
+            size={15}
+            color={theme.colors.warn}
+          />
+        </View>
+
+        {showConnector ? (
+          <View
+            style={{
+              marginTop: 4,
+              width: 2,
+              flex: 1,
+              minHeight: 10,
+              borderRadius: 999,
+              backgroundColor: "rgba(255,255,255,0.08)",
+            }}
+          />
+        ) : null}
       </View>
 
       <View style={{ flex: 1 }}>
@@ -483,8 +506,12 @@ export default function HistoryScreen() {
                         Timeline
                       </Text>
 
-                      {timelinePreview.map((event) => (
-                        <TimelineRow key={event.id} event={event} />
+                      {timelinePreview.map((event, index) => (
+                        <TimelineRow
+                          key={event.id}
+                          event={event}
+                          showConnector={index < timelinePreview.length - 1}
+                        />
                       ))}
 
                       {booking.timeline.length > timelinePreview.length ? (
