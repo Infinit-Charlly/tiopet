@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useRef } from "react";
 import { ScrollView, Text, View } from "react-native";
 
+import { createBookingCreatedEvent } from "../src/domain/bookings";
 import { TransportType, useBookingsStore } from "../src/store/bookingsStore";
 import { theme } from "../src/theme/theme";
 import { Button } from "../src/ui/Button";
@@ -14,16 +15,17 @@ type PetType = "Perro" | "Gato";
 type PlanId = "bb" | "consientan" | "principe";
 type CareTime = "day" | "full";
 
-function pickString(v: unknown, fallback = "") {
-  return typeof v === "string" ? v : fallback;
+function pickString(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
 }
+
 function pickEnum<T extends string>(
-  v: unknown,
+  value: unknown,
   allowed: readonly T[],
   fallback: T,
 ) {
-  return typeof v === "string" && (allowed as readonly string[]).includes(v)
-    ? (v as T)
+  return typeof value === "string" && (allowed as readonly string[]).includes(value)
+    ? (value as T)
     : fallback;
 }
 
@@ -33,17 +35,17 @@ function makeId(prefix = "b") {
   return `${prefix}_${t}_${r}`;
 }
 
-function transportLabel(t?: TransportType) {
-  if (!t) return "No";
-  if (t === "ida") return "Solo ida";
-  if (t === "vuelta") return "Solo vuelta";
+function transportLabel(type?: TransportType) {
+  if (!type) return "No";
+  if (type === "ida") return "Solo ida";
+  if (type === "vuelta") return "Solo vuelta";
   return "Ida y vuelta";
 }
 
 function formatCreatedAt(iso: string) {
   try {
-    const d = new Date(iso);
-    return d.toLocaleString("es-EC", {
+    const date = new Date(iso);
+    return date.toLocaleString("es-EC", {
       weekday: "short",
       day: "2-digit",
       month: "short",
@@ -57,9 +59,10 @@ function formatCreatedAt(iso: string) {
 
 export default function ConfirmScreen() {
   const router = useRouter();
-  const addBooking = useBookingsStore((s) => s.addBooking);
+  const addBooking = useBookingsStore((state) => state.addBooking);
   const params = useLocalSearchParams();
 
+  const petId = pickString(params.petId);
   const petName = pickString(params.petName, "—");
   const petType = pickEnum<PetType>(params.petType, ["Perro", "Gato"], "Perro");
 
@@ -77,8 +80,7 @@ export default function ConfirmScreen() {
   const dateLabel = pickString(params.dateLabel, "—");
   const totalUSD = pickString(params.totalUSD, "$0.00");
 
-  const transportNeeded =
-    pickString(params.transportNeeded, "false") === "true";
+  const transportNeeded = pickString(params.transportNeeded, "false") === "true";
   const transportType = pickEnum<TransportType>(
     params.transportType,
     ["ida", "vuelta", "ida_vuelta"],
@@ -101,6 +103,7 @@ export default function ConfirmScreen() {
 
     addBooking({
       id: makeId("b"),
+      petId: petId || undefined,
       petName,
       petType,
       planId,
@@ -113,14 +116,13 @@ export default function ConfirmScreen() {
       createdAtISO,
       transportNeeded,
       transportType: transportNeeded ? transportType : undefined,
+      timeline: [createBookingCreatedEvent(createdAtISO)],
     });
 
-    // Te manda al Tab Historial para ver tu reserva caer como meteorito 🧾
     router.replace("/(tabs)/history");
   };
 
   const createdAtPreview = useMemo(() => {
-    // preview de “fecha de reserva” (para que el usuario sienta realidad)
     return formatCreatedAt(new Date().toISOString());
   }, []);
 
@@ -147,12 +149,11 @@ export default function ConfirmScreen() {
           <Text
             style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}
           >
-            Revisa que todo esté perfecto. Si esto sale bien… tu peludito sube
-            de rango a “VIP” 😼🐶
+            Revisa que todo este perfecto. Si esto sale bien, tu peludito sube
+            de rango a VIP.
           </Text>
 
           <Card style={{ marginTop: theme.spacing(2) }}>
-            {/* Header mascota */}
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
             >

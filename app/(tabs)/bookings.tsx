@@ -1044,6 +1044,7 @@ export default function BookingsScreen() {
                 router.push({
                   pathname: "/confirm",
                   params: {
+                    petId: selectedPet.id,
                     petName: selectedPet.name,
                     petType: selectedPet.type,
                     planId,

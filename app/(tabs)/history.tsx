@@ -2,6 +2,10 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 
+import {
+  getTimelineEventIcon,
+  getTimelineEventLabel,
+} from "../../src/domain/bookings";
 import { Booking, useBookingsStore } from "../../src/store/bookingsStore";
 import { theme } from "../../src/theme/theme";
 import { Button } from "../../src/ui/Button";
@@ -12,7 +16,7 @@ import { Screen } from "../../src/ui/Screen";
 type Filter = "todas" | "pendiente" | "confirmada" | "cancelada";
 
 function statusMeta(status: Booking["status"]) {
-  if (status === "confirmada")
+  if (status === "confirmada") {
     return {
       label: "Confirmada",
       icon: "check-decagram",
@@ -20,7 +24,9 @@ function statusMeta(status: Booking["status"]) {
       chipBorder: "rgba(34,197,94,0.32)",
       cardBorder: "rgba(34,197,94,0.55)",
     };
-  if (status === "cancelada")
+  }
+
+  if (status === "cancelada") {
     return {
       label: "Cancelada",
       icon: "close-circle",
@@ -28,6 +34,8 @@ function statusMeta(status: Booking["status"]) {
       chipBorder: "rgba(239,68,68,0.32)",
       cardBorder: "rgba(239,68,68,0.55)",
     };
+  }
+
   return {
     label: "Pendiente",
     icon: "clock-outline",
@@ -76,8 +84,8 @@ function transportLabel(type?: Booking["transportType"]) {
 
 function formatCreatedAt(iso: string) {
   try {
-    const d = new Date(iso);
-    return d.toLocaleString("es-EC", {
+    const date = new Date(iso);
+    return date.toLocaleString("es-EC", {
       weekday: "short",
       day: "2-digit",
       month: "short",
@@ -125,18 +133,68 @@ function Line({
   );
 }
 
+function TimelineRow({
+  event,
+}: {
+  event: Booking["timeline"][number];
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: 10,
+      }}
+    >
+      <View
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 14,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: theme.colors.surface,
+          borderWidth: 1,
+          borderColor: theme.colors.line,
+        }}
+      >
+        <MaterialCommunityIcons
+          name={getTimelineEventIcon(event.type) as any}
+          size={15}
+          color={theme.colors.warn}
+        />
+      </View>
+
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
+          {getTimelineEventLabel(event.type)}
+        </Text>
+        <Text style={{ color: theme.colors.muted, fontSize: 12, marginTop: 2 }}>
+          {formatCreatedAt(event.createdAtISO)}
+        </Text>
+        {event.note ? (
+          <Text style={{ color: theme.colors.muted, marginTop: 4 }}>
+            {event.note}
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 export default function HistoryScreen() {
-  const bookings = useBookingsStore((s) => s.bookings);
-  const confirmBooking = useBookingsStore((s) => s.confirmBooking);
-  const cancelBooking = useBookingsStore((s) => s.cancelBooking);
+  const bookings = useBookingsStore((state) => state.bookings);
+  const confirmBooking = useBookingsStore((state) => state.confirmBooking);
+  const cancelBooking = useBookingsStore((state) => state.cancelBooking);
 
   const [filter, setFilter] = useState<Filter>("todas");
   const [showAll, setShowAll] = useState(false);
 
   const counts = useMemo(() => {
-    const pending = bookings.filter((b) => b.status === "pendiente").length;
-    const confirmed = bookings.filter((b) => b.status === "confirmada").length;
-    const canceled = bookings.filter((b) => b.status === "cancelada").length;
+    const pending = bookings.filter((booking) => booking.status === "pendiente").length;
+    const confirmed = bookings.filter((booking) => booking.status === "confirmada").length;
+    const canceled = bookings.filter((booking) => booking.status === "cancelada").length;
+
     return {
       todas: bookings.length,
       pendiente: pending,
@@ -149,11 +207,9 @@ export default function HistoryScreen() {
     const base =
       filter === "todas"
         ? bookings
-        : bookings.filter((b) => b.status === filter);
-    // orden: más recientes arriba (createdAtISO)
-    return [...base].sort((a, b) =>
-      b.createdAtISO.localeCompare(a.createdAtISO),
-    );
+        : bookings.filter((booking) => booking.status === filter);
+
+    return [...base].sort((a, b) => b.createdAtISO.localeCompare(a.createdAtISO));
   }, [bookings, filter]);
 
   const list = useMemo(() => {
@@ -163,7 +219,7 @@ export default function HistoryScreen() {
   const askCancel = (id: string) => {
     Alert.alert(
       "Cancelar reserva",
-      "¿Seguro que deseas cancelar esta reserva?\n\nEsta acción no se puede deshacer.",
+      "Seguro que deseas cancelar esta reserva?\n\nEsta accion no se puede deshacer.",
       [
         { text: "Volver", style: "cancel" },
         {
@@ -181,7 +237,7 @@ export default function HistoryScreen() {
   const askConfirm = (id: string) => {
     Alert.alert(
       "Confirmar reserva",
-      "¿Confirmamos esta reserva?\n\nPasará a estado “Confirmada”.",
+      "Confirmamos esta reserva?\n\nPasara a estado \"Confirmada\".",
       [
         { text: "Volver", style: "cancel" },
         {
@@ -283,7 +339,7 @@ export default function HistoryScreen() {
               <Button
                 title={showAll ? "Ver menos" : "Ver más"}
                 variant="secondary"
-                onPress={() => setShowAll((x) => !x)}
+                onPress={() => setShowAll((value) => !value)}
                 style={{ paddingVertical: 10, paddingHorizontal: 12 }}
                 textStyle={{ fontSize: 13 }}
               />
@@ -292,28 +348,26 @@ export default function HistoryScreen() {
 
           {filtered.length === 0 ? (
             <Text style={{ color: theme.colors.muted, marginTop: 10 }}>
-              Aquí aparecerán tus reservas. Crea una en “Reservar” 😄
+              Aquí aparecerán tus reservas. Crea una en Reservar 😄
             </Text>
           ) : (
             <View style={{ marginTop: 12, gap: 10 }}>
-              {list.map((b) => {
-                const meta = statusMeta(b.status);
-
+              {list.map((booking) => {
+                const meta = statusMeta(booking.status);
                 const careTimeLabel =
-                  b.careTime === "day"
+                  booking.careTime === "day"
                     ? "Día laboral (08:30 – 18:00)"
                     : "24 horas (Hospedaje)";
-
-                const transportText = b.transportNeeded
-                  ? transportLabel(b.transportType)
+                const transportText = booking.transportNeeded
+                  ? transportLabel(booking.transportType)
                   : "No necesita";
-
-                const reservedAtText = formatCreatedAt(b.createdAtISO);
-                const canAct = b.status === "pendiente";
+                const reservedAtText = formatCreatedAt(booking.createdAtISO);
+                const canAct = booking.status === "pendiente";
+                const timelinePreview = [...booking.timeline].slice(-4).reverse();
 
                 return (
                   <View
-                    key={b.id}
+                    key={booking.id}
                     style={{
                       borderWidth: 1,
                       borderColor: meta.cardBorder,
@@ -322,7 +376,6 @@ export default function HistoryScreen() {
                       padding: theme.spacing(2),
                     }}
                   >
-                    {/* Header */}
                     <View
                       style={{
                         flexDirection: "row",
@@ -338,7 +391,7 @@ export default function HistoryScreen() {
                         }}
                       >
                         <MaterialCommunityIcons
-                          name={b.petType === "Perro" ? "dog" : "cat"}
+                          name={booking.petType === "Perro" ? "dog" : "cat"}
                           size={20}
                           color={theme.colors.warn}
                         />
@@ -349,7 +402,7 @@ export default function HistoryScreen() {
                             fontSize: 16,
                           }}
                         >
-                          {b.petName}
+                          {booking.petName}
                         </Text>
                       </View>
 
@@ -383,7 +436,6 @@ export default function HistoryScreen() {
                       </View>
                     </View>
 
-                    {/* Plan */}
                     <Text
                       style={{
                         color: theme.colors.text,
@@ -391,14 +443,13 @@ export default function HistoryScreen() {
                         marginTop: 10,
                       }}
                     >
-                      {b.planName}
+                      {booking.planName}
                     </Text>
 
-                    {/* Fechas CLARAS */}
                     <Line
                       icon="calendar"
                       label="Servicio"
-                      value={`${b.city} · ${b.dateLabel}`}
+                      value={`${booking.city} · ${booking.dateLabel}`}
                       valueStrong
                     />
                     <Line
@@ -407,14 +458,42 @@ export default function HistoryScreen() {
                       value={reservedAtText}
                     />
 
-                    {/* Tiempo + transporte */}
                     <Text style={{ color: theme.colors.muted, marginTop: 8 }}>
                       {careTimeLabel}
                     </Text>
 
                     <Line icon="car" label="Transporte" value={transportText} />
 
-                    {/* Total */}
+                    <View
+                      style={{
+                        marginTop: 12,
+                        paddingTop: 12,
+                        borderTopWidth: 1,
+                        borderTopColor: theme.colors.line,
+                        gap: 10,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: theme.colors.text,
+                          fontWeight: "900",
+                          fontSize: 13,
+                        }}
+                      >
+                        Timeline
+                      </Text>
+
+                      {timelinePreview.map((event) => (
+                        <TimelineRow key={event.id} event={event} />
+                      ))}
+
+                      {booking.timeline.length > timelinePreview.length ? (
+                        <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
+                          +{booking.timeline.length - timelinePreview.length} evento(s) más
+                        </Text>
+                      ) : null}
+                    </View>
+
                     <View
                       style={{
                         marginTop: 10,
@@ -426,9 +505,7 @@ export default function HistoryScreen() {
                         alignItems: "center",
                       }}
                     >
-                      <Text
-                        style={{ color: theme.colors.muted, fontWeight: "800" }}
-                      >
+                      <Text style={{ color: theme.colors.muted, fontWeight: "800" }}>
                         Total
                       </Text>
                       <Text
@@ -438,11 +515,10 @@ export default function HistoryScreen() {
                           fontSize: 16,
                         }}
                       >
-                        {b.totalUSD}
+                        {booking.totalUSD}
                       </Text>
                     </View>
 
-                    {/* Acciones 2 columnas + Hold */}
                     {canAct ? (
                       <View
                         style={{
@@ -457,7 +533,7 @@ export default function HistoryScreen() {
                             hint="Mantén"
                             variant="success"
                             holdMs={850}
-                            onComplete={() => askConfirm(b.id)}
+                            onComplete={() => askConfirm(booking.id)}
                           />
                         </View>
 
@@ -467,7 +543,7 @@ export default function HistoryScreen() {
                             hint="Mantén"
                             variant="danger"
                             holdMs={850}
-                            onComplete={() => askCancel(b.id)}
+                            onComplete={() => askCancel(booking.id)}
                           />
                         </View>
                       </View>
