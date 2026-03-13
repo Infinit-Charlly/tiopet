@@ -37,53 +37,52 @@ function formatCreatedAt(iso?: string) {
   }
 }
 
-function EventComposerCard({
+function EventTypeTile({
   type,
   selected,
-  note,
-  registrationPreview,
   onToggle,
-  onChangeNote,
-  onSave,
-  onClearSelection,
 }: {
   type: BookingCareEventType;
   selected: boolean;
-  note: string;
-  registrationPreview: string;
   onToggle: () => void;
-  onChangeNote: (value: string) => void;
-  onSave: () => void;
-  onClearSelection: () => void;
 }) {
   const definition = getBookingCareEventDefinition(type);
 
   return (
     <View
       style={{
-        width: selected ? "100%" : "48.5%",
-        borderRadius: theme.radius.lg,
-        borderWidth: 1,
-        borderColor: selected ? "rgba(87,215,255,0.52)" : theme.colors.line,
-        backgroundColor: selected
-          ? "rgba(87,215,255,0.14)"
-          : theme.colors.surface2,
-        overflow: "hidden",
+        width: "50%",
+        paddingHorizontal: 5,
+        paddingBottom: 10,
       }}
     >
       <Pressable
         onPress={onToggle}
         style={{
-          minHeight: 96,
-          padding: 14,
+          minHeight: 82,
+          borderRadius: theme.radius.lg,
+          borderWidth: 1,
+          borderColor: selected ? "rgba(87,215,255,0.52)" : theme.colors.line,
+          backgroundColor: selected
+            ? "rgba(87,215,255,0.16)"
+            : theme.colors.surface2,
+          paddingHorizontal: 12,
+          paddingVertical: 12,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 10,
+          }}
+        >
           <View
             style={{
-              width: 34,
-              height: 34,
-              borderRadius: 17,
+              width: 32,
+              height: 32,
+              borderRadius: 16,
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: selected
@@ -93,118 +92,46 @@ function EventComposerCard({
           >
             <MaterialCommunityIcons
               name={getTimelineEventIcon(type) as any}
-              size={18}
+              size={17}
               color={theme.colors.warn}
             />
           </View>
 
-          <View style={{ flex: 1 }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
-              }}
-            >
-              <Text
-                style={{
-                  color: theme.colors.text,
-                  fontWeight: "900",
-                  flex: 1,
-                }}
-              >
-                {definition.label}
-              </Text>
-
-              <MaterialCommunityIcons
-                name={selected ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={theme.colors.muted}
-              />
-            </View>
-
-            <Text
-              style={{
-                color: theme.colors.muted,
-                fontSize: 12,
-                lineHeight: 16,
-                marginTop: 4,
-              }}
-            >
-              {definition.description}
-            </Text>
-          </View>
-        </View>
-      </Pressable>
-
-      {selected ? (
-        <View
-          style={{
-            borderTopWidth: 1,
-            borderTopColor: "rgba(255,255,255,0.08)",
-            padding: 16,
-            backgroundColor: "rgba(10,14,23,0.38)",
-          }}
-        >
-          {definition.helperText ? (
-            <Text style={{ color: theme.colors.muted, lineHeight: 18 }}>
-              {definition.helperText}
-            </Text>
-          ) : null}
-
-          <Text style={{ color: theme.colors.muted, marginTop: 14, lineHeight: 18 }}>
-            {definition.noteLabel}
-          </Text>
-          <TextInput
-            value={note}
-            onChangeText={onChangeNote}
-            multiline
-            placeholder={definition.notePlaceholder}
-            placeholderTextColor={theme.colors.muted}
-            textAlignVertical="top"
-            style={{
-              marginTop: 10,
-              minHeight: 110,
-              borderWidth: 1,
-              borderColor: theme.colors.line,
-              borderRadius: theme.radius.xl,
-              paddingHorizontal: 14,
-              paddingVertical: 14,
-              color: theme.colors.text,
-              backgroundColor: theme.colors.surface,
-            }}
-          />
-
           <View
             style={{
-              marginTop: 12,
-              flexDirection: "row",
+              width: 20,
+              height: 20,
+              borderRadius: 10,
               alignItems: "center",
-              gap: 8,
+              justifyContent: "center",
+              backgroundColor: selected
+                ? "rgba(87,215,255,0.18)"
+                : "rgba(255,255,255,0.06)",
+              borderWidth: selected ? 1 : 0,
+              borderColor: selected ? "rgba(87,215,255,0.30)" : "transparent",
             }}
           >
-            <MaterialCommunityIcons name="clock-outline" size={16} color={theme.colors.warn} />
-            <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
-              Se registrara ahora:{" "}
-              <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
-                {registrationPreview}
-              </Text>
-            </Text>
-          </View>
-
-          <View style={{ marginTop: 16 }}>
-            <Button title="Registrar evento" variant="success" onPress={onSave} />
-          </View>
-          <View style={{ marginTop: 10 }}>
-            <Button
-              title="Limpiar seleccion"
-              variant="ghost"
-              onPress={onClearSelection}
+            <MaterialCommunityIcons
+              name={selected ? "check" : "plus"}
+              size={13}
+              color={selected ? theme.colors.text : theme.colors.muted}
             />
           </View>
         </View>
-      ) : null}
+
+        <Text
+          numberOfLines={2}
+          style={{
+            color: theme.colors.text,
+            fontWeight: "900",
+            marginTop: 12,
+            fontSize: 13,
+            lineHeight: 16,
+          }}
+        >
+          {definition.label}
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -332,6 +259,9 @@ export default function BookingCareScreen() {
   }
 
   const canRegister = canRegisterBookingCareEvents(booking.qr.phase);
+  const selectedDefinition = selectedType
+    ? getBookingCareEventDefinition(selectedType)
+    : null;
   const recentEvents = [...booking.timeline].slice(-5).reverse();
   const registrationPreview = formatCreatedAt(new Date().toISOString());
 
@@ -500,44 +430,184 @@ export default function BookingCareScreen() {
                 Tipo de evento
               </Text>
               <Text style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}>
-                Toca una accion para abrir su detalle y registrar el update en el timeline local.
+                Elige un tipo de evento para preparar el registro en el panel inferior.
               </Text>
 
               <View
                 style={{
-                  marginTop: 14,
+                  marginTop: 12,
                   flexDirection: "row",
                   flexWrap: "wrap",
-                  justifyContent: "space-between",
-                  gap: 10,
+                  marginHorizontal: -5,
                 }}
               >
                 {getBookingCareEventDefinitions().map((definition) => (
-                  <EventComposerCard
+                  <EventTypeTile
                     key={definition.type}
                     type={definition.type}
                     selected={selectedType === definition.type}
-                    note={selectedType === definition.type ? note : ""}
-                    registrationPreview={registrationPreview}
                     onToggle={() =>
                       setSelectedType((current) =>
                         current === definition.type ? null : definition.type,
                       )
                     }
-                    onChangeNote={setNote}
-                    onSave={onSave}
-                    onClearSelection={() => {
-                      setSelectedType(null);
-                      setNote("");
-                    }}
                   />
                 ))}
               </View>
 
-              {selectedType ? null : (
+              {selectedDefinition ? (
                 <View
                   style={{
-                    marginTop: 16,
+                    marginTop: 12,
+                    borderRadius: theme.radius.lg,
+                    borderWidth: 1,
+                    borderColor: "rgba(87,215,255,0.28)",
+                    backgroundColor: theme.colors.surface2,
+                    padding: 16,
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+                      <View
+                        style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 19,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "rgba(87,215,255,0.12)",
+                          borderWidth: 1,
+                          borderColor: "rgba(87,215,255,0.30)",
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name={getTimelineEventIcon(selectedDefinition.type) as any}
+                          size={18}
+                          color={theme.colors.warn}
+                        />
+                      </View>
+
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            color: theme.colors.text,
+                            fontWeight: "900",
+                            fontSize: 16,
+                          }}
+                        >
+                          {selectedDefinition.label}
+                        </Text>
+                        <Text
+                          style={{
+                            color: theme.colors.muted,
+                            marginTop: 4,
+                            lineHeight: 18,
+                          }}
+                        >
+                          {selectedDefinition.description}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Pressable
+                      onPress={() => {
+                        setSelectedType(null);
+                        setNote("");
+                      }}
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 15,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderWidth: 1,
+                        borderColor: theme.colors.line,
+                        backgroundColor: theme.colors.surface,
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name="close"
+                        size={16}
+                        color={theme.colors.muted}
+                      />
+                    </Pressable>
+                  </View>
+
+                  {selectedDefinition.helperText ? (
+                    <Text style={{ color: theme.colors.muted, marginTop: 12, lineHeight: 18 }}>
+                      {selectedDefinition.helperText}
+                    </Text>
+                  ) : null}
+
+                  <Text style={{ color: theme.colors.muted, marginTop: 14, lineHeight: 18 }}>
+                    {selectedDefinition.noteLabel}
+                  </Text>
+                  <TextInput
+                    value={note}
+                    onChangeText={setNote}
+                    multiline
+                    placeholder={selectedDefinition.notePlaceholder}
+                    placeholderTextColor={theme.colors.muted}
+                    textAlignVertical="top"
+                    style={{
+                      marginTop: 10,
+                      minHeight: 110,
+                      borderWidth: 1,
+                      borderColor: theme.colors.line,
+                      borderRadius: theme.radius.xl,
+                      paddingHorizontal: 14,
+                      paddingVertical: 14,
+                      color: theme.colors.text,
+                      backgroundColor: theme.colors.surface,
+                    }}
+                  />
+
+                  <View
+                    style={{
+                      marginTop: 12,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="clock-outline"
+                      size={16}
+                      color={theme.colors.warn}
+                    />
+                    <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
+                      Se registrara ahora:{" "}
+                      <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
+                        {registrationPreview}
+                      </Text>
+                    </Text>
+                  </View>
+
+                  <View style={{ marginTop: 16 }}>
+                    <Button title="Registrar evento" variant="success" onPress={onSave} />
+                  </View>
+                  <View style={{ marginTop: 10 }}>
+                    <Button
+                      title="Limpiar seleccion"
+                      variant="ghost"
+                      onPress={() => {
+                        setSelectedType(null);
+                        setNote("");
+                      }}
+                    />
+                  </View>
+                </View>
+              ) : (
+                <View
+                  style={{
+                    marginTop: 12,
                     borderRadius: theme.radius.lg,
                     borderWidth: 1,
                     borderColor: theme.colors.line,
@@ -546,7 +616,7 @@ export default function BookingCareScreen() {
                   }}
                 >
                   <Text style={{ color: theme.colors.muted, lineHeight: 18 }}>
-                    Elige un tipo de evento para ver su contexto y registrar la nota en el mismo bloque.
+                    Selecciona una accion para ver su contexto, escribir la nota y registrarla abajo.
                   </Text>
                 </View>
               )}
