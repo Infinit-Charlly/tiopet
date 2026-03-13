@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 
 import {
+  canRegisterBookingCareEvents,
   getBookingQrPhaseLabel,
   getTimelineEventIcon,
   getTimelineEventLabel,
@@ -197,6 +198,9 @@ export default function HistoryScreen() {
 
   const [filter, setFilter] = useState<Filter>("todas");
   const [showAll, setShowAll] = useState(false);
+  const [expandedTimelines, setExpandedTimelines] = useState<
+    Record<string, boolean>
+  >({});
 
   const counts = useMemo(() => {
     const pending = bookings.filter((booking) => booking.status === "pendiente").length;
@@ -371,7 +375,13 @@ export default function HistoryScreen() {
                   : "No necesita";
                 const reservedAtText = formatCreatedAt(booking.createdAtISO);
                 const canAct = booking.status === "pendiente";
+                const canRegisterCare = canRegisterBookingCareEvents(booking.qr.phase);
                 const timelinePreview = [...booking.timeline].slice(-4).reverse();
+                const isTimelineExpanded = expandedTimelines[booking.id] === true;
+                const visibleTimeline = isTimelineExpanded
+                  ? booking.timeline
+                  : timelinePreview;
+                const hiddenCount = booking.timeline.length - timelinePreview.length;
 
                 return (
                   <View
@@ -457,7 +467,7 @@ export default function HistoryScreen() {
                     <Line
                       icon="calendar"
                       label="Servicio"
-                      value={`${booking.city} · ${booking.dateLabel}`}
+                      value={`${booking.city} - ${booking.dateLabel}`}
                       valueStrong
                     />
                     <Line
@@ -516,21 +526,50 @@ export default function HistoryScreen() {
                           }}
                         />
 
-                        {timelinePreview.map((event) => (
+                        {visibleTimeline.map((event) => (
                           <TimelineRow key={event.id} event={event} />
                         ))}
                       </View>
 
-                      {booking.timeline.length > timelinePreview.length ? (
-                        <Text
+                      {hiddenCount > 0 ? (
+                        <Pressable
+                          onPress={() =>
+                            setExpandedTimelines((current) => ({
+                              ...current,
+                              [booking.id]: !isTimelineExpanded,
+                            }))
+                          }
                           style={{
-                            color: theme.colors.muted,
-                            fontSize: 12,
                             marginTop: 10,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                            alignSelf: "flex-start",
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            borderRadius: 999,
+                            borderWidth: 1,
+                            borderColor: "rgba(87,215,255,0.24)",
+                            backgroundColor: "rgba(87,215,255,0.08)",
                           }}
                         >
-                          +{booking.timeline.length - timelinePreview.length} evento(s) mas
-                        </Text>
+                          <MaterialCommunityIcons
+                            name={isTimelineExpanded ? "chevron-up" : "chevron-down"}
+                            size={16}
+                            color={theme.colors.warn}
+                          />
+                          <Text
+                            style={{
+                              color: theme.colors.text,
+                              fontSize: 12,
+                              fontWeight: "800",
+                            }}
+                          >
+                            {isTimelineExpanded
+                              ? "Ver menos"
+                              : `Ver timeline completo (+${hiddenCount})`}
+                          </Text>
+                        </Pressable>
                       ) : null}
                     </View>
 
@@ -560,17 +599,40 @@ export default function HistoryScreen() {
                     </View>
 
                     {booking.status !== "cancelada" ? (
-                      <View style={{ marginTop: 12 }}>
-                        <Button
-                          title="Ver QR"
-                          variant="secondary"
-                          onPress={() =>
-                            router.push({
-                              pathname: "/booking-qr",
-                              params: { bookingId: booking.id },
-                            })
-                          }
-                        />
+                      <View
+                        style={{
+                          marginTop: 12,
+                          flexDirection: "row",
+                          gap: 10,
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Button
+                            title="Ver QR"
+                            variant="secondary"
+                            onPress={() =>
+                              router.push({
+                                pathname: "/booking-qr",
+                                params: { bookingId: booking.id },
+                              })
+                            }
+                          />
+                        </View>
+
+                        {canRegisterCare ? (
+                          <View style={{ flex: 1 }}>
+                            <Button
+                              title="Registrar cuidado"
+                              variant="outline"
+                              onPress={() =>
+                                router.push({
+                                  pathname: "/booking-care",
+                                  params: { bookingId: booking.id },
+                                })
+                              }
+                            />
+                          </View>
+                        ) : null}
                       </View>
                     ) : null}
 

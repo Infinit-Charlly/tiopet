@@ -1,4 +1,5 @@
 export * from "./dates";
+export * from "./careEvents";
 export * from "./labels";
 export * from "./options";
 export * from "./plans";

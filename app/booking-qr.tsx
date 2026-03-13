@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, View } from "react-native";
 
 import {
+  canRegisterBookingCareEvents,
   getActiveBookingQrCode,
   getActiveBookingQrIntent,
   getBookingQrConsumeErrorMessage,
@@ -185,6 +186,7 @@ export default function BookingQrScreen() {
 
   const activeIntent = getActiveBookingQrIntent(booking.qr);
   const activeCode = getActiveBookingQrCode(booking.qr);
+  const canRegisterCare = canRegisterBookingCareEvents(booking.qr.phase);
   const displayToken =
     activeCode?.token ??
     (booking.qr.phase === "checked_out"
@@ -248,7 +250,7 @@ export default function BookingQrScreen() {
             <InfoRow
               icon="calendar"
               label="Servicio"
-              value={`${booking.city} · ${booking.dateLabel}`}
+              value={`${booking.city} - ${booking.dateLabel}`}
             />
             <InfoRow
               icon="receipt-text-clock"
@@ -267,6 +269,54 @@ export default function BookingQrScreen() {
             />
           </View>
         </Card>
+
+        {canRegisterCare ? (
+          <Card
+            style={{
+              marginTop: theme.spacing(2),
+              borderColor: "rgba(34,197,94,0.38)",
+              backgroundColor: "rgba(34,197,94,0.08)",
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 19,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "rgba(34,197,94,0.16)",
+                  borderWidth: 1,
+                  borderColor: "rgba(34,197,94,0.40)",
+                }}
+              >
+                <MaterialCommunityIcons name="check-decagram" size={18} color={theme.colors.good} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: theme.colors.text, fontWeight: "900", fontSize: 16 }}>
+                  Check-in completado
+                </Text>
+                <Text style={{ color: theme.colors.muted, marginTop: 4, lineHeight: 18 }}>
+                  El peludito ya esta dentro del flujo de cuidado. El siguiente paso es registrar sus eventos del dia.
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ marginTop: 14 }}>
+              <Button
+                title="Continuar a cuidado"
+                variant="success"
+                onPress={() =>
+                  router.push({
+                    pathname: "/booking-care",
+                    params: { bookingId: booking.id },
+                  })
+                }
+              />
+            </View>
+          </Card>
+        ) : null}
 
         <Card style={{ marginTop: theme.spacing(2) }}>
           <Text style={{ color: theme.colors.text, fontWeight: "900", fontSize: 16 }}>
