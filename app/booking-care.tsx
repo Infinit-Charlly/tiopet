@@ -422,7 +422,7 @@ function InlinePickerActionButton({
   dimmed,
   onPress,
 }: {
-  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  icon: string;
   label: string;
   value: string;
   active: boolean;
@@ -434,7 +434,7 @@ function InlinePickerActionButton({
       onPress={onPress}
       style={{
         flex: 1,
-        minHeight: 62,
+        minHeight: 108,
         borderRadius: theme.radius.xl,
         borderWidth: 1,
         borderColor: active
@@ -448,50 +448,47 @@ function InlinePickerActionButton({
             ? "rgba(255,255,255,0.025)"
             : "rgba(255,255,255,0.04)",
         paddingHorizontal: 14,
-        paddingVertical: 12,
-        justifyContent: "center",
+        paddingVertical: 14,
+        alignItems: "center",
+        justifyContent: "space-between",
         shadowColor: active ? "rgba(87,215,255,0.42)" : "transparent",
         shadowOpacity: active ? 0.18 : 0,
         shadowRadius: active ? 14 : 0,
         shadowOffset: { width: 0, height: 8 },
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <View
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: 17,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: active ? "rgba(87,215,255,0.16)" : "rgba(255,255,255,0.06)",
-          }}
-        >
-          <MaterialCommunityIcons
-            name={icon}
-            size={18}
-            color={active ? theme.colors.text : theme.colors.muted}
-          />
-        </View>
-
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text
-            numberOfLines={1}
-            style={{ color: theme.colors.text, fontWeight: "900", fontSize: 13 }}
-          >
-            {label}
-          </Text>
-          <Text
-            numberOfLines={1}
-            style={{
-              color: active ? theme.colors.text : theme.colors.muted,
-              marginTop: 5,
-              fontSize: 12,
-            }}
-          >
-            {value}
-          </Text>
-        </View>
+      <Text
+        style={{
+          color: theme.colors.text,
+          fontWeight: "900",
+          fontSize: 13,
+          textAlign: "center",
+        }}
+      >
+        {label}
+      </Text>
+      <Text
+        style={{
+          color: active ? theme.colors.text : theme.colors.muted,
+          fontSize: 15,
+          fontWeight: "800",
+          textAlign: "center",
+        }}
+      >
+        {value}
+      </Text>
+      <View
+        style={{
+          minWidth: 34,
+          minHeight: 34,
+          paddingHorizontal: 8,
+          borderRadius: 17,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: active ? "rgba(87,215,255,0.16)" : "rgba(255,255,255,0.06)",
+        }}
+      >
+        <Text style={{ fontSize: 18, lineHeight: 20 }}>{icon}</Text>
       </View>
     </Pressable>
   );
@@ -1122,7 +1119,7 @@ export default function BookingCareScreen() {
                         >
                           <View style={{ flexDirection: "row", gap: 10 }}>
                             <InlinePickerActionButton
-                              icon="calendar-month-outline"
+                              icon="📅"
                               label="Editar fecha"
                               value={eventDateValue || "Seleccionar fecha"}
                               active={isDatePickerActive}
@@ -1130,7 +1127,7 @@ export default function BookingCareScreen() {
                               onPress={() => setMobilePickerMode("date")}
                             />
                             <InlinePickerActionButton
-                              icon="clock-time-four-outline"
+                              icon="🕒"
                               label="Editar hora"
                               value={eventTimeValue || "Seleccionar hora"}
                               active={isTimePickerActive}
@@ -1388,6 +1385,7 @@ export default function BookingCareScreen() {
     </Screen>
   );
 }
+
 
 
 
