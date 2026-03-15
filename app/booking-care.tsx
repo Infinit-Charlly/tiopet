@@ -1,18 +1,32 @@
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 import {
+  canMutateTimelineEvent,
   canRegisterBookingCareEvents,
   getBookingCareEventDefinition,
   getBookingCareEventDefinitions,
   getBookingCareGateMessage,
   getBookingQrPhaseLabel,
   getTimelineEventIcon,
+  sortTimelineEventsDescending,
   getTimelineEventLabel,
   validateBookingCareEventDraft,
   type BookingCareEventType,
+  type CareTimelineEvent,
 } from "../src/domain/bookings";
 import { useBookingsStore } from "../src/store/bookingsStore";
 import { theme } from "../src/theme/theme";
@@ -34,6 +48,104 @@ function formatCreatedAt(iso?: string) {
     });
   } catch {
     return "-";
+  }
+}
+
+function padDatePart(value: number) {
+  return value.toString().padStart(2, "0");
+}
+
+function formatDateInputValue(iso?: string) {
+  if (!iso) return "";
+
+  const date = new Date(iso);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return [
+    date.getFullYear(),
+    padDatePart(date.getMonth() + 1),
+    padDatePart(date.getDate()),
+  ].join("-");
+}
+
+function formatTimeInputValue(iso?: string) {
+  if (!iso) return "";
+
+  const date = new Date(iso);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return `${padDatePart(date.getHours())}:${padDatePart(date.getMinutes())}`;
+}
+
+function buildEditedCreatedAtISO(dateValue: string, timeValue: string) {
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue.trim());
+  const timeMatch = /^(\d{2}):(\d{2})$/.exec(timeValue.trim());
+
+  if (!dateMatch || !timeMatch) {
+    return null;
+  }
+
+  const year = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]);
+  const day = Number(dateMatch[3]);
+  const hours = Number(timeMatch[1]);
+  const minutes = Number(timeMatch[2]);
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+
+  const nextDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+
+  if (
+    Number.isNaN(nextDate.getTime()) ||
+    nextDate.getFullYear() !== year ||
+    nextDate.getMonth() !== month - 1 ||
+    nextDate.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return nextDate.toISOString();
+}
+
+function getMutationErrorMessage(reason: string) {
+  switch (reason) {
+    case "booking_not_found":
+      return "No encontramos la reserva para actualizar este evento.";
+    case "event_not_found":
+      return "No encontramos ese evento dentro del timeline local.";
+    case "event_not_mutable":
+      return "Ese evento no se puede editar ni eliminar.";
+    case "invalid_type":
+      return "El tipo de evento seleccionado no es valido para edicion.";
+    case "invalid_note":
+      return "Revisa la nota antes de guardar los cambios.";
+    case "invalid_created_at":
+      return "Revisa la fecha y la hora antes de guardar los cambios.";
+    case "before_check_in":
+      return "El evento no puede registrarse antes del check-in local de la reserva.";
+    case "after_check_out":
+      return "El evento no puede quedar despues del check-out local de la reserva.";
+    case "in_future":
+      return "Si la reserva no tiene check-out, el evento no puede quedar en el futuro.";
+    default:
+      return "No pudimos completar la accion sobre el evento.";
   }
 }
 
@@ -137,51 +249,132 @@ function EventTypeTile({
 }
 
 function TimelinePreviewRow({
-  type,
-  createdAtISO,
-  note,
+  event,
+  canManage,
+  isEditing,
+  onEdit,
+  onDelete,
 }: {
-  type: string;
-  createdAtISO: string;
-  note?: string;
+  event: CareTimelineEvent;
+  canManage: boolean;
+  isEditing: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   return (
     <View
       style={{
-        flexDirection: "row",
-        alignItems: "flex-start",
-        gap: 12,
+        borderRadius: theme.radius.lg,
+        borderWidth: 1,
+        borderColor: isEditing ? "rgba(87,215,255,0.32)" : theme.colors.line,
+        backgroundColor: isEditing ? "rgba(87,215,255,0.08)" : theme.colors.surface2,
+        padding: 12,
       }}
     >
       <View
         style={{
-          width: 30,
-          height: 30,
-          borderRadius: 15,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "rgba(87,215,255,0.12)",
-          borderWidth: 1,
-          borderColor: "rgba(87,215,255,0.34)",
+          flexDirection: "row",
+          alignItems: "flex-start",
+          gap: 12,
         }}
       >
-        <MaterialCommunityIcons
-          name={getTimelineEventIcon(type as any) as any}
-          size={15}
-          color={theme.colors.warn}
-        />
-      </View>
+        <View
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(87,215,255,0.12)",
+            borderWidth: 1,
+            borderColor: "rgba(87,215,255,0.34)",
+          }}
+        >
+          <MaterialCommunityIcons
+            name={getTimelineEventIcon(event.type) as any}
+            size={15}
+            color={theme.colors.warn}
+          />
+        </View>
 
-      <View style={{ flex: 1, paddingTop: 2 }}>
-        <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
-          {getTimelineEventLabel(type as any)}
-        </Text>
-        <Text style={{ color: theme.colors.muted, fontSize: 12, marginTop: 2 }}>
-          {formatCreatedAt(createdAtISO)}
-        </Text>
-        {note ? (
-          <Text style={{ color: theme.colors.muted, marginTop: 4 }}>{note}</Text>
-        ) : null}
+        <View style={{ flex: 1, paddingTop: 2 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
+            <Text style={{ color: theme.colors.text, fontWeight: "800", flex: 1 }}>
+              {getTimelineEventLabel(event.type)}
+            </Text>
+            {isEditing ? (
+              <View
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: "rgba(87,215,255,0.30)",
+                  backgroundColor: "rgba(87,215,255,0.14)",
+                }}
+              >
+                <Text style={{ color: theme.colors.text, fontSize: 11, fontWeight: "800" }}>
+                  Editando
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <Text style={{ color: theme.colors.muted, fontSize: 12, marginTop: 2 }}>
+            {formatCreatedAt(event.createdAtISO)}
+          </Text>
+
+          {event.note ? (
+            <Text style={{ color: theme.colors.muted, marginTop: 4 }}>{event.note}</Text>
+          ) : null}
+
+          {canManage ? (
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+              <Pressable
+                onPress={onEdit}
+                style={{
+                  flex: 1,
+                  minHeight: 38,
+                  borderRadius: theme.radius.md,
+                  borderWidth: 1,
+                  borderColor: "rgba(87,215,255,0.28)",
+                  backgroundColor: "rgba(87,215,255,0.12)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingHorizontal: 12,
+                }}
+              >
+                <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
+                  {isEditing ? "Seguir editando" : "Editar"}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={onDelete}
+                style={{
+                  flex: 1,
+                  minHeight: 38,
+                  borderRadius: theme.radius.md,
+                  borderWidth: 1,
+                  borderColor: "rgba(239,68,68,0.32)",
+                  backgroundColor: "rgba(239,68,68,0.12)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingHorizontal: 12,
+                }}
+              >
+                <Text style={{ color: theme.colors.text, fontWeight: "800" }}>Eliminar</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -227,6 +420,8 @@ export default function BookingCareScreen() {
   const bookingId = typeof params.bookingId === "string" ? params.bookingId : "";
   const bookings = useBookingsStore((state) => state.bookings);
   const addTimelineEvent = useBookingsStore((state) => state.addTimelineEvent);
+  const updateTimelineEvent = useBookingsStore((state) => state.updateTimelineEvent);
+  const deleteTimelineEvent = useBookingsStore((state) => state.deleteTimelineEvent);
 
   const booking = useMemo(
     () => bookings.find((item) => item.id === bookingId),
@@ -234,8 +429,32 @@ export default function BookingCareScreen() {
   );
   const [selectedType, setSelectedType] = useState<BookingCareEventType | null>(null);
   const [note, setNote] = useState("");
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [eventDateValue, setEventDateValue] = useState("");
+  const [eventTimeValue, setEventTimeValue] = useState("");
+  const [mobilePickerMode, setMobilePickerMode] = useState<"date" | "time" | null>(null);
 
   const goToHistory = () => router.replace("/(tabs)/history");
+
+  const editingEvent = useMemo(() => {
+    if (!booking || !editingEventId) return null;
+    return booking.timeline.find((event) => event.id === editingEventId) ?? null;
+  }, [booking, editingEventId]);
+
+  const resetComposer = () => {
+    setEditingEventId(null);
+    setSelectedType(null);
+    setNote("");
+    setEventDateValue("");
+    setEventTimeValue("");
+    setMobilePickerMode(null);
+  };
+
+  useEffect(() => {
+    if (editingEventId && (!editingEvent || !canMutateTimelineEvent(editingEvent))) {
+      resetComposer();
+    }
+  }, [editingEventId, editingEvent]);
 
   if (!booking) {
     return (
@@ -259,11 +478,60 @@ export default function BookingCareScreen() {
   }
 
   const canRegister = canRegisterBookingCareEvents(booking.qr.phase);
+  const isEditMode = editingEvent !== null;
   const selectedDefinition = selectedType
     ? getBookingCareEventDefinition(selectedType)
     : null;
-  const recentEvents = [...booking.timeline].slice(-5).reverse();
-  const registrationPreview = formatCreatedAt(new Date().toISOString());
+  const recentEvents = sortTimelineEventsDescending(booking.timeline).slice(0, 5);
+  const draftEditedCreatedAtISO = isEditMode
+    ? buildEditedCreatedAtISO(eventDateValue, eventTimeValue)
+    : null;
+  const selectedTimestampSummary = isEditMode
+    ? draftEditedCreatedAtISO
+      ? formatCreatedAt(draftEditedCreatedAtISO)
+      : "Fecha u hora invalida"
+    : formatCreatedAt(new Date().toISOString());
+  const registrationPreview = isEditMode
+    ? draftEditedCreatedAtISO
+      ? selectedTimestampSummary
+      : formatCreatedAt(editingEvent.createdAtISO)
+    : formatCreatedAt(new Date().toISOString());
+
+  const startEditing = (event: CareTimelineEvent) => {
+    if (!canRegister || !canMutateTimelineEvent(event)) return;
+
+    setEditingEventId(event.id);
+    setSelectedType(event.type as BookingCareEventType);
+    setNote(event.note ?? "");
+    setEventDateValue(formatDateInputValue(event.createdAtISO));
+    setEventTimeValue(formatTimeInputValue(event.createdAtISO));
+  };
+
+  const onNativeDateChange = (
+    event: DateTimePickerEvent,
+    selectedDate?: Date,
+  ) => {
+    if (Platform.OS !== "ios") {
+      setMobilePickerMode(null);
+    }
+
+    if (event.type === "dismissed" || !selectedDate) return;
+
+    setEventDateValue(formatDateInputValue(selectedDate.toISOString()));
+  };
+
+  const onNativeTimeChange = (
+    event: DateTimePickerEvent,
+    selectedDate?: Date,
+  ) => {
+    if (Platform.OS !== "ios") {
+      setMobilePickerMode(null);
+    }
+
+    if (event.type === "dismissed" || !selectedDate) return;
+
+    setEventTimeValue(formatTimeInputValue(selectedDate.toISOString()));
+  };
 
   const onSave = () => {
     if (!selectedType || !canRegister) return;
@@ -278,15 +546,79 @@ export default function BookingCareScreen() {
       return;
     }
 
-    addTimelineEvent(booking.id, {
+    if (isEditMode && editingEvent) {
+      const nextCreatedAtISO = buildEditedCreatedAtISO(eventDateValue, eventTimeValue);
+
+      if (!nextCreatedAtISO) {
+        Alert.alert(
+          "Fecha invalida",
+          "Revisa la fecha y la hora para guardar el evento local.",
+        );
+        return;
+      }
+
+      const result = updateTimelineEvent(booking.id, editingEvent.id, {
+        type: selectedType,
+        note: validation.note ?? "",
+        createdAtISO: nextCreatedAtISO,
+      });
+
+      if (!result.ok) {
+        Alert.alert("No se pudo actualizar", getMutationErrorMessage(result.reason));
+        return;
+      }
+
+      resetComposer();
+      Alert.alert("Evento actualizado", "El cuidado se actualizo en el timeline local.");
+      return;
+    }
+
+    const result = addTimelineEvent(booking.id, {
       type: selectedType,
       actor: "caregiver",
       note: validation.note,
     });
 
-    setSelectedType(null);
-    setNote("");
+    if (!result.ok) {
+      Alert.alert("No se pudo registrar", getMutationErrorMessage(result.reason));
+      return;
+    }
+
+    resetComposer();
     Alert.alert("Evento registrado", "El cuidado se agrego al timeline local.");
+  };
+
+  const confirmDeleteEvent = (event: CareTimelineEvent) => {
+    if (!canRegister || !canMutateTimelineEvent(event)) return;
+
+    Alert.alert(
+      "Eliminar evento",
+      "Esta accion quitara el evento del timeline local. Quieres continuar?",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: () => {
+            const result = deleteTimelineEvent(booking.id, event.id);
+
+            if (!result.ok) {
+              Alert.alert("No se pudo eliminar", getMutationErrorMessage(result.reason));
+              return;
+            }
+
+            if (editingEventId === event.id) {
+              resetComposer();
+            }
+
+            Alert.alert("Evento eliminado", "El evento se quito del timeline local.");
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -345,10 +677,12 @@ export default function BookingCareScreen() {
           </View>
 
           <Text style={{ color: theme.colors.text, fontSize: 28, fontWeight: "900", marginTop: 18 }}>
-            Registrar cuidado
+            {isEditMode ? "Editar cuidado" : "Registrar cuidado"}
           </Text>
           <Text style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}>
-            Captura eventos reales del cuidado con una vista mas clara y lista para operar desde el movil.
+            {isEditMode
+              ? "Ajusta el evento seleccionado sin salir del panel operativo y manteniendo su trazabilidad local."
+              : "Captura eventos reales del cuidado con una vista mas clara y lista para operar desde el movil."}
           </Text>
 
           <Card style={{ marginTop: theme.spacing(2) }}>
@@ -420,18 +754,50 @@ export default function BookingCareScreen() {
 
           {canRegister ? (
             <Card style={{ marginTop: theme.spacing(2) }}>
-              <Text
+              <View
                 style={{
-                  color: theme.colors.text,
-                  fontWeight: "900",
-                  fontSize: 16,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
                 }}
               >
-                Tipo de evento
-              </Text>
-              <Text style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}>
-                Elige un tipo de evento para preparar el registro en el panel inferior.
-              </Text>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: theme.colors.text,
+                      fontWeight: "900",
+                      fontSize: 16,
+                    }}
+                  >
+                    {isEditMode ? "Editar evento" : "Tipo de evento"}
+                  </Text>
+                  <Text style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}>
+                    {isEditMode
+                      ? "Reutiliza el mismo panel para corregir tipo, nota o la hora del evento seleccionado."
+                      : "Elige un tipo de evento para preparar el registro en el panel inferior."}
+                  </Text>
+                </View>
+
+                <View
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: isEditMode
+                      ? "rgba(87,215,255,0.32)"
+                      : "rgba(255,255,255,0.10)",
+                    backgroundColor: isEditMode
+                      ? "rgba(87,215,255,0.12)"
+                      : theme.colors.surface,
+                  }}
+                >
+                  <Text style={{ color: theme.colors.text, fontWeight: "800", fontSize: 12 }}>
+                    {isEditMode ? "Modo edicion" : "Modo registro"}
+                  </Text>
+                </View>
+              </View>
 
               <View
                 style={{
@@ -517,10 +883,7 @@ export default function BookingCareScreen() {
                     </View>
 
                     <Pressable
-                      onPress={() => {
-                        setSelectedType(null);
-                        setNote("");
-                      }}
+                      onPress={resetComposer}
                       style={{
                         width: 30,
                         height: 30,
@@ -539,6 +902,256 @@ export default function BookingCareScreen() {
                       />
                     </Pressable>
                   </View>
+
+                  {isEditMode ? (
+                    <View
+                      style={{
+                        marginTop: 12,
+                        borderRadius: theme.radius.md,
+                        borderWidth: 1,
+                        borderColor: "rgba(87,215,255,0.24)",
+                        backgroundColor: "rgba(87,215,255,0.08)",
+                        padding: 12,
+                        gap: 12,
+                      }}
+                    >
+                      <View>
+                        <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
+                          Fecha y hora del evento
+                        </Text>
+                        <Text style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}>
+                          Corrige el momento real del cuidado para mantener el timeline en orden.
+                        </Text>
+                      </View>
+
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                        <View
+                          style={{
+                            flex: 1,
+                            minWidth: 150,
+                            borderRadius: theme.radius.md,
+                            borderWidth: 1,
+                            borderColor: "rgba(255,255,255,0.10)",
+                            backgroundColor: theme.colors.surface,
+                            padding: 12,
+                          }}
+                        >
+                          <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
+                            Guardado actualmente
+                          </Text>
+                          <Text
+                            style={{
+                              color: theme.colors.text,
+                              fontWeight: "900",
+                              marginTop: 6,
+                            }}
+                          >
+                            {formatCreatedAt(editingEvent.createdAtISO)}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={{
+                            flex: 1,
+                            minWidth: 150,
+                            borderRadius: theme.radius.md,
+                            borderWidth: 1,
+                            borderColor: draftEditedCreatedAtISO
+                              ? "rgba(87,215,255,0.30)"
+                              : "rgba(239,68,68,0.32)",
+                            backgroundColor: draftEditedCreatedAtISO
+                              ? "rgba(87,215,255,0.12)"
+                              : "rgba(239,68,68,0.10)",
+                            padding: 12,
+                          }}
+                        >
+                          <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
+                            Nuevo seleccionado
+                          </Text>
+                          <Text
+                            style={{
+                              color: theme.colors.text,
+                              fontWeight: "900",
+                              marginTop: 6,
+                            }}
+                          >
+                            {selectedTimestampSummary}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {Platform.OS === "web" ? (
+                        <View style={{ flexDirection: "row", gap: 10 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: theme.colors.muted, marginBottom: 8 }}>
+                              Fecha
+                            </Text>
+                            <TextInput
+                              value={eventDateValue}
+                              onChangeText={setEventDateValue}
+                              autoCapitalize="none"
+                              autoCorrect={false}
+                              placeholder="AAAA-MM-DD"
+                              placeholderTextColor={theme.colors.muted}
+                              style={{
+                                minHeight: 50,
+                                borderWidth: 1,
+                                borderColor: theme.colors.line,
+                                borderRadius: theme.radius.xl,
+                                paddingHorizontal: 14,
+                                color: theme.colors.text,
+                                backgroundColor: theme.colors.surface,
+                              }}
+                            />
+                          </View>
+
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: theme.colors.muted, marginBottom: 8 }}>
+                              Hora
+                            </Text>
+                            <TextInput
+                              value={eventTimeValue}
+                              onChangeText={setEventTimeValue}
+                              autoCapitalize="none"
+                              autoCorrect={false}
+                              placeholder="HH:MM"
+                              placeholderTextColor={theme.colors.muted}
+                              style={{
+                                minHeight: 50,
+                                borderWidth: 1,
+                                borderColor: theme.colors.line,
+                                borderRadius: theme.radius.xl,
+                                paddingHorizontal: 14,
+                                color: theme.colors.text,
+                                backgroundColor: theme.colors.surface,
+                              }}
+                            />
+                          </View>
+                        </View>
+                      ) : (
+                        <View style={{ gap: 10 }}>
+                          <View style={{ flexDirection: "row", gap: 10 }}>
+                            <Pressable
+                              onPress={() => setMobilePickerMode("date")}
+                              style={{
+                                flex: 1,
+                                minHeight: 62,
+                                borderRadius: theme.radius.xl,
+                                borderWidth: 1,
+                                borderColor: mobilePickerMode === "date"
+                                  ? "rgba(87,215,255,0.38)"
+                                  : theme.colors.line,
+                                backgroundColor: mobilePickerMode === "date"
+                                  ? "rgba(87,215,255,0.12)"
+                                  : theme.colors.surface,
+                                paddingHorizontal: 14,
+                                paddingVertical: 12,
+                                justifyContent: "center",
+                              }}
+                            >
+                              <Text style={{ color: theme.colors.text, fontWeight: "900" }}>
+                                Cambiar fecha
+                              </Text>
+                              <Text style={{ color: theme.colors.muted, marginTop: 6, fontSize: 12 }}>
+                                {eventDateValue || "Seleccionar fecha"}
+                              </Text>
+                            </Pressable>
+
+                            <Pressable
+                              onPress={() => setMobilePickerMode("time")}
+                              style={{
+                                flex: 1,
+                                minHeight: 62,
+                                borderRadius: theme.radius.xl,
+                                borderWidth: 1,
+                                borderColor: mobilePickerMode === "time"
+                                  ? "rgba(87,215,255,0.38)"
+                                  : theme.colors.line,
+                                backgroundColor: mobilePickerMode === "time"
+                                  ? "rgba(87,215,255,0.12)"
+                                  : theme.colors.surface,
+                                paddingHorizontal: 14,
+                                paddingVertical: 12,
+                                justifyContent: "center",
+                              }}
+                            >
+                              <Text style={{ color: theme.colors.text, fontWeight: "900" }}>
+                                Cambiar hora
+                              </Text>
+                              <Text style={{ color: theme.colors.muted, marginTop: 6, fontSize: 12 }}>
+                                {eventTimeValue || "Seleccionar hora"}
+                              </Text>
+                            </Pressable>
+                          </View>
+
+                          <View
+                            style={{
+                              borderRadius: theme.radius.lg,
+                              borderWidth: 1,
+                              borderColor: mobilePickerMode
+                                ? "rgba(87,215,255,0.24)"
+                                : theme.colors.line,
+                              backgroundColor: theme.colors.surface,
+                              padding: 12,
+                              gap: 10,
+                            }}
+                          >
+                            <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
+                              {mobilePickerMode === "date"
+                                ? "Selector de fecha"
+                                : mobilePickerMode === "time"
+                                  ? "Selector de hora"
+                                  : "Elige una accion arriba"}
+                            </Text>
+                            <Text style={{ color: theme.colors.muted, lineHeight: 18 }}>
+                              {mobilePickerMode === "date"
+                                ? "Toca el dia correcto y luego cambia la hora si hace falta."
+                                : mobilePickerMode === "time"
+                                  ? "Ajusta la hora real del evento antes de guardar."
+                                  : "Usa los botones Cambiar fecha o Cambiar hora para abrir el selector."}
+                            </Text>
+
+                            {mobilePickerMode === "date" ? (
+                              <DateTimePicker
+                                value={new Date(draftEditedCreatedAtISO ?? editingEvent.createdAtISO)}
+                                mode="date"
+                                display={Platform.OS === "ios" ? "spinner" : "default"}
+                                onChange={onNativeDateChange}
+                              />
+                            ) : null}
+
+                            {mobilePickerMode === "time" ? (
+                              <DateTimePicker
+                                value={new Date(draftEditedCreatedAtISO ?? editingEvent.createdAtISO)}
+                                mode="time"
+                                display={Platform.OS === "ios" ? "spinner" : "default"}
+                                onChange={onNativeTimeChange}
+                              />
+                            ) : null}
+
+                            {mobilePickerMode ? (
+                              <Pressable
+                                onPress={() => setMobilePickerMode(null)}
+                                style={{
+                                  alignSelf: "flex-start",
+                                  paddingHorizontal: 12,
+                                  paddingVertical: 8,
+                                  borderRadius: 999,
+                                  borderWidth: 1,
+                                  borderColor: theme.colors.line,
+                                  backgroundColor: theme.colors.surface2,
+                                }}
+                              >
+                                <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
+                                  Listo
+                                </Text>
+                              </Pressable>
+                            ) : null}
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  ) : null}
 
                   {selectedDefinition.helperText ? (
                     <Text style={{ color: theme.colors.muted, marginTop: 12, lineHeight: 18 }}>
@@ -578,12 +1191,12 @@ export default function BookingCareScreen() {
                     }}
                   >
                     <MaterialCommunityIcons
-                      name="clock-outline"
+                      name={isEditMode ? "history" : "clock-outline"}
                       size={16}
                       color={theme.colors.warn}
                     />
                     <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
-                      Se registrara ahora:{" "}
+                      {isEditMode ? "Se guardara con fecha: " : "Se registrara ahora: "}
                       <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
                         {registrationPreview}
                       </Text>
@@ -591,16 +1204,17 @@ export default function BookingCareScreen() {
                   </View>
 
                   <View style={{ marginTop: 16 }}>
-                    <Button title="Registrar evento" variant="success" onPress={onSave} />
+                    <Button
+                      title={isEditMode ? "Guardar cambios" : "Registrar evento"}
+                      variant="success"
+                      onPress={onSave}
+                    />
                   </View>
                   <View style={{ marginTop: 10 }}>
                     <Button
-                      title="Limpiar seleccion"
+                      title={isEditMode ? "Cancelar edicion" : "Limpiar seleccion"}
                       variant="ghost"
-                      onPress={() => {
-                        setSelectedType(null);
-                        setNote("");
-                      }}
+                      onPress={resetComposer}
                     />
                   </View>
                 </View>
@@ -616,7 +1230,9 @@ export default function BookingCareScreen() {
                   }}
                 >
                   <Text style={{ color: theme.colors.muted, lineHeight: 18 }}>
-                    Selecciona una accion para ver su contexto, escribir la nota y registrarla abajo.
+                    {isEditMode
+                      ? "Selecciona el nuevo tipo o ajusta la nota para guardar el cambio localmente."
+                      : "Selecciona una accion para ver su contexto, escribir la nota y registrarla abajo."}
                   </Text>
                 </View>
               )}
@@ -654,14 +1270,20 @@ export default function BookingCareScreen() {
             </View>
 
             <View style={{ marginTop: 12, gap: 12 }}>
-              {recentEvents.map((event) => (
-                <TimelinePreviewRow
-                  key={event.id}
-                  type={event.type}
-                  createdAtISO={event.createdAtISO}
-                  note={event.note}
-                />
-              ))}
+              {recentEvents.map((event) => {
+                const canManage = canRegister && canMutateTimelineEvent(event);
+
+                return (
+                  <TimelinePreviewRow
+                    key={event.id}
+                    event={event}
+                    canManage={canManage}
+                    isEditing={editingEventId === event.id}
+                    onEdit={() => startEditing(event)}
+                    onDelete={() => confirmDeleteEvent(event)}
+                  />
+                );
+              })}
             </View>
 
             <Text style={{ color: theme.colors.muted, marginTop: 12, fontSize: 12 }}>
@@ -676,6 +1298,20 @@ export default function BookingCareScreen() {
           <View style={{ height: 22 }} />
         </View>
       </ScrollView>
+
+
     </Screen>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+

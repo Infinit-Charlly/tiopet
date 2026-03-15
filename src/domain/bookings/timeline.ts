@@ -25,6 +25,24 @@ const CARE_TIMELINE_EVENT_TYPES = [
 export type CareTimelineEventType = (typeof CARE_TIMELINE_EVENT_TYPES)[number];
 export type CareTimelineActor = "system" | "caregiver";
 
+const IMMUTABLE_TIMELINE_EVENT_TYPES = new Set<CareTimelineEventType>([
+  "booking_created",
+  "booking_confirmed",
+  "booking_cancelled",
+  "check_in",
+  "check_out",
+]);
+
+const MUTABLE_CARE_TIMELINE_EVENT_TYPES = new Set<CareTimelineEventType>([
+  "feeding",
+  "snack",
+  "playtime",
+  "walk",
+  "nap",
+  "photo_update",
+  "incident",
+]);
+
 export type CareTimelineEvent = {
   id: string;
   type: CareTimelineEventType;
@@ -94,6 +112,77 @@ export function sortTimelineEvents(events: CareTimelineEvent[]) {
     if (byDate !== 0) return byDate;
     return a.id.localeCompare(b.id);
   });
+}
+
+export function sortTimelineEventsDescending(events: CareTimelineEvent[]) {
+  return sortTimelineEvents(events).reverse();
+}
+
+export type CareEventServiceWindowValidationReason =
+  | "before_check_in"
+  | "after_check_out"
+  | "in_future";
+
+export function validateCareEventCreatedAtISOWithinServiceWindow(input: {
+  timeline: CareTimelineEvent[];
+  createdAtISO: string;
+  nowISO?: string;
+}) {
+  const nextCreatedAt = Date.parse(input.createdAtISO);
+
+  if (Number.isNaN(nextCreatedAt)) {
+    return {
+      ok: false as const,
+      reason: "in_future" as const,
+    };
+  }
+
+  const sortedTimeline = sortTimelineEvents(input.timeline);
+  const checkInEvent =
+    sortedTimeline.find((event) => event.type === "check_in") ?? null;
+
+  if (!checkInEvent) {
+    return {
+      ok: false as const,
+      reason: "before_check_in" as const,
+      boundaryISO: undefined,
+    };
+  }
+
+  if (input.createdAtISO.localeCompare(checkInEvent.createdAtISO) < 0) {
+    return {
+      ok: false as const,
+      reason: "before_check_in" as const,
+      boundaryISO: checkInEvent.createdAtISO,
+    };
+  }
+
+  const checkOutEvent =
+    [...sortedTimeline].reverse().find((event) => event.type === "check_out") ?? null;
+
+  if (checkOutEvent) {
+    if (input.createdAtISO.localeCompare(checkOutEvent.createdAtISO) > 0) {
+      return {
+        ok: false as const,
+        reason: "after_check_out" as const,
+        boundaryISO: checkOutEvent.createdAtISO,
+      };
+    }
+  } else {
+    const nowISO = input.nowISO ?? new Date().toISOString();
+
+    if (input.createdAtISO.localeCompare(nowISO) > 0) {
+      return {
+        ok: false as const,
+        reason: "in_future" as const,
+        boundaryISO: nowISO,
+      };
+    }
+  }
+
+  return {
+    ok: true as const,
+  };
 }
 
 export function createTimelineEvent(
@@ -203,6 +292,22 @@ export function normalizeTimelineEvents(
   return sortTimelineEvents(events);
 }
 
+export function canMutateTimelineEvent(
+  event: unknown,
+): event is CareTimelineEvent {
+  if (!event || typeof event !== "object") return false;
+
+  const record = event as Partial<CareTimelineEvent>;
+
+  if (!isTimelineEventType(record.type)) return false;
+  if (IMMUTABLE_TIMELINE_EVENT_TYPES.has(record.type)) return false;
+
+  return (
+    record.actor === "caregiver" &&
+    MUTABLE_CARE_TIMELINE_EVENT_TYPES.has(record.type)
+  );
+}
+
 export function getTimelineEventLabel(type: CareTimelineEventType) {
   switch (type) {
     case "booking_created":
@@ -296,3 +401,4 @@ export function getTimelineEventIcon(type: CareTimelineEventType) {
       return "sofa";
   }
 }
+

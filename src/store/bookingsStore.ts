@@ -3,6 +3,8 @@ import { create } from "zustand";
 
 import {
   activateBookingQr,
+  BOOKING_CARE_EVENT_TYPES,
+  canMutateTimelineEvent,
   consumeBookingQr as consumeBookingQrState,
   createBookingCancelledEvent,
   createBookingConfirmedEvent,
@@ -13,6 +15,9 @@ import {
   normalizeBookingQrState,
   normalizeTimelineEvents,
   sortTimelineEvents,
+  validateCareEventCreatedAtISOWithinServiceWindow,
+  validateBookingCareEventDraft,
+  type BookingCareEventType,
   type BookingQrConsumeError,
   type BookingQrIntent,
   type BookingQrState,
@@ -58,6 +63,30 @@ export type ConsumeBookingQrResult =
       reason: BookingQrConsumeError | "booking_not_found";
     };
 
+export type TimelineMutationResult =
+  | {
+      ok: true;
+    }
+  | {
+      ok: false;
+      reason:
+        | "booking_not_found"
+        | "event_not_found"
+        | "event_not_mutable"
+        | "invalid_type"
+        | "invalid_note"
+        | "invalid_created_at"
+        | "before_check_in"
+        | "after_check_out"
+        | "in_future";
+    };
+
+type TimelineEventPatch = {
+  type?: BookingCareEventType;
+  note?: string;
+  createdAtISO?: string;
+};
+
 type BookingsState = {
   bookings: Booking[];
   hydrated: boolean;
@@ -65,7 +94,16 @@ type BookingsState = {
   addBooking: (booking: Booking) => void;
   confirmBooking: (id: string) => void;
   cancelBooking: (id: string) => void;
-  addTimelineEvent: (bookingId: string, event: CareTimelineEventInput) => void;
+  addTimelineEvent: (bookingId: string, event: CareTimelineEventInput) => TimelineMutationResult;
+  updateTimelineEvent: (
+    bookingId: string,
+    eventId: string,
+    patch: TimelineEventPatch,
+  ) => TimelineMutationResult;
+  deleteTimelineEvent: (
+    bookingId: string,
+    eventId: string,
+  ) => TimelineMutationResult;
   consumeBookingQr: (
     bookingId: string,
     intent: BookingQrIntent,
@@ -78,11 +116,26 @@ type BookingsState = {
 };
 
 const STORAGE_KEY = "tiopet_bookings_v1";
+const EDITABLE_TIMELINE_EVENT_TYPES = new Set<string>(BOOKING_CARE_EVENT_TYPES);
 
 function makeId(prefix = "b") {
   const t = Date.now().toString(36);
   const r = Math.random().toString(36).slice(2, 10);
   return `${prefix}_${t}_${r}`;
+}
+
+function isEditableTimelineEventType(
+  value: unknown,
+): value is BookingCareEventType {
+  return typeof value === "string" && EDITABLE_TIMELINE_EVENT_TYPES.has(value);
+}
+
+function isValidTimelineCreatedAtISO(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    !Number.isNaN(Date.parse(value))
+  );
 }
 
 function fixDuplicateIds(list: Booking[]) {
@@ -264,12 +317,245 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
   },
 
   addTimelineEvent: (bookingId, event) => {
+    let didChange = false;
+    let result: TimelineMutationResult = {
+      ok: false,
+      reason: "booking_not_found",
+    };
+
     set((state) => ({
-      bookings: state.bookings.map((booking) =>
-        booking.id === bookingId ? appendTimelineEvent(booking, event) : booking,
-      ),
+      bookings: state.bookings.map((booking) => {
+        if (booking.id !== bookingId) {
+          return booking;
+        }
+
+        if (!isEditableTimelineEventType(event.type)) {
+          result = {
+            ok: false,
+            reason: "invalid_type",
+          };
+          return booking;
+        }
+
+        const validation = validateBookingCareEventDraft({
+          type: event.type,
+          note: event.note ?? "",
+        });
+
+        if (!validation.ok) {
+          result = {
+            ok: false,
+            reason: "invalid_note",
+          };
+          return booking;
+        }
+
+        const nextCreatedAtISO = event.createdAtISO ?? new Date().toISOString();
+
+        if (!isValidTimelineCreatedAtISO(nextCreatedAtISO)) {
+          result = {
+            ok: false,
+            reason: "invalid_created_at",
+          };
+          return booking;
+        }
+
+        const windowValidation = validateCareEventCreatedAtISOWithinServiceWindow({
+          timeline: booking.timeline,
+          createdAtISO: nextCreatedAtISO,
+        });
+
+        if (!windowValidation.ok) {
+          result = {
+            ok: false,
+            reason: windowValidation.reason,
+          };
+          return booking;
+        }
+
+        didChange = true;
+        result = { ok: true };
+
+        return appendTimelineEvent(booking, {
+          ...event,
+          actor: event.actor ?? "caregiver",
+          note: validation.note,
+          createdAtISO: nextCreatedAtISO,
+        });
+      }),
     }));
-    void get().persist();
+
+    if (didChange) {
+      void get().persist();
+    }
+
+    return result;
+  },
+
+  updateTimelineEvent: (bookingId, eventId, patch) => {
+    let didChange = false;
+    let result: TimelineMutationResult = {
+      ok: false,
+      reason: "booking_not_found",
+    };
+
+    set((state) => ({
+      bookings: state.bookings.map((booking) => {
+        if (booking.id !== bookingId) {
+          return booking;
+        }
+
+        result = {
+          ok: false,
+          reason: "event_not_found",
+        };
+
+        const eventIndex = booking.timeline.findIndex((event) => event.id === eventId);
+
+        if (eventIndex === -1) {
+          return booking;
+        }
+
+        const currentEvent = booking.timeline[eventIndex];
+
+        if (!canMutateTimelineEvent(currentEvent)) {
+          result = {
+            ok: false,
+            reason: "event_not_mutable",
+          };
+          return booking;
+        }
+
+        const nextType = patch.type ?? currentEvent.type;
+
+        if (!isEditableTimelineEventType(nextType)) {
+          result = {
+            ok: false,
+            reason: "invalid_type",
+          };
+          return booking;
+        }
+
+        const validation = validateBookingCareEventDraft({
+          type: nextType,
+          note: patch.note ?? currentEvent.note ?? "",
+        });
+
+        if (!validation.ok) {
+          result = {
+            ok: false,
+            reason: "invalid_note",
+          };
+          return booking;
+        }
+
+        const nextCreatedAtISO = patch.createdAtISO ?? currentEvent.createdAtISO;
+
+        if (!isValidTimelineCreatedAtISO(nextCreatedAtISO)) {
+          result = {
+            ok: false,
+            reason: "invalid_created_at",
+          };
+          return booking;
+        }
+
+        const windowValidation = validateCareEventCreatedAtISOWithinServiceWindow({
+          timeline: booking.timeline,
+          createdAtISO: nextCreatedAtISO,
+        });
+
+        if (!windowValidation.ok) {
+          result = {
+            ok: false,
+            reason: windowValidation.reason,
+          };
+          return booking;
+        }
+
+        const updatedEvent: CareTimelineEvent = {
+          ...currentEvent,
+          type: nextType,
+          note: validation.note,
+          createdAtISO: nextCreatedAtISO,
+        };
+
+        result = { ok: true };
+
+        if (
+          updatedEvent.type === currentEvent.type &&
+          updatedEvent.note === currentEvent.note &&
+          updatedEvent.createdAtISO === currentEvent.createdAtISO
+        ) {
+          return booking;
+        }
+
+        didChange = true;
+
+        const nextTimeline = booking.timeline.map((event, index) =>
+          index === eventIndex ? updatedEvent : event,
+        );
+
+        return {
+          ...booking,
+          timeline: sortTimelineEvents(nextTimeline),
+        };
+      }),
+    }));
+
+    if (didChange) {
+      void get().persist();
+    }
+
+    return result;
+  },
+
+  deleteTimelineEvent: (bookingId, eventId) => {
+    let didChange = false;
+    let result: TimelineMutationResult = {
+      ok: false,
+      reason: "booking_not_found",
+    };
+
+    set((state) => ({
+      bookings: state.bookings.map((booking) => {
+        if (booking.id !== bookingId) {
+          return booking;
+        }
+
+        result = {
+          ok: false,
+          reason: "event_not_found",
+        };
+
+        const currentEvent = booking.timeline.find((event) => event.id === eventId);
+
+        if (!currentEvent) {
+          return booking;
+        }
+
+        if (!canMutateTimelineEvent(currentEvent)) {
+          result = {
+            ok: false,
+            reason: "event_not_mutable",
+          };
+          return booking;
+        }
+
+        didChange = true;
+        result = { ok: true };
+
+        return {
+          ...booking,
+          timeline: booking.timeline.filter((event) => event.id !== eventId),
+        };
+      }),
+    }));
+
+    if (didChange) {
+      void get().persist();
+    }
+
+    return result;
   },
 
   consumeBookingQr: (bookingId, intent, token) => {
@@ -360,3 +646,7 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
     set({ bookings: [] });
   },
 }));
+
+
+
+

@@ -8,6 +8,7 @@ import {
   getBookingQrPhaseLabel,
   getTimelineEventIcon,
   getTimelineEventLabel,
+  sortTimelineEventsDescending,
 } from "../../src/domain/bookings";
 import { Booking, useBookingsStore } from "../../src/store/bookingsStore";
 import { theme } from "../../src/theme/theme";
@@ -376,12 +377,13 @@ export default function HistoryScreen() {
                 const reservedAtText = formatCreatedAt(booking.createdAtISO);
                 const canAct = booking.status === "pendiente";
                 const canRegisterCare = canRegisterBookingCareEvents(booking.qr.phase);
-                const timelinePreview = [...booking.timeline].slice(-4).reverse();
+                const timelineForDisplay = sortTimelineEventsDescending(booking.timeline);
+                const timelinePreview = timelineForDisplay.slice(0, 4);
                 const isTimelineExpanded = expandedTimelines[booking.id] === true;
                 const visibleTimeline = isTimelineExpanded
-                  ? booking.timeline
+                  ? timelineForDisplay
                   : timelinePreview;
-                const hiddenCount = booking.timeline.length - timelinePreview.length;
+                const hiddenCount = timelineForDisplay.length - timelinePreview.length;
 
                 return (
                   <View
@@ -677,3 +679,4 @@ export default function HistoryScreen() {
     </Screen>
   );
 }
+
