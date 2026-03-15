@@ -60,4 +60,5 @@ package-lock.json
 # .env
 .env
 
+.claude/
 
