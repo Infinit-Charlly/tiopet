@@ -414,6 +414,89 @@ function MetaPill({
   );
 }
 
+function InlinePickerActionButton({
+  icon,
+  label,
+  value,
+  active,
+  dimmed,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  label: string;
+  value: string;
+  active: boolean;
+  dimmed: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        flex: 1,
+        minHeight: 62,
+        borderRadius: theme.radius.xl,
+        borderWidth: 1,
+        borderColor: active
+          ? "rgba(87,215,255,0.48)"
+          : dimmed
+            ? "rgba(255,255,255,0.08)"
+            : "rgba(255,255,255,0.12)",
+        backgroundColor: active
+          ? "rgba(87,215,255,0.12)"
+          : dimmed
+            ? "rgba(255,255,255,0.025)"
+            : "rgba(255,255,255,0.04)",
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        justifyContent: "center",
+        shadowColor: active ? "rgba(87,215,255,0.42)" : "transparent",
+        shadowOpacity: active ? 0.18 : 0,
+        shadowRadius: active ? 14 : 0,
+        shadowOffset: { width: 0, height: 8 },
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <View
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: active ? "rgba(87,215,255,0.16)" : "rgba(255,255,255,0.06)",
+          }}
+        >
+          <MaterialCommunityIcons
+            name={icon}
+            size={18}
+            color={active ? theme.colors.text : theme.colors.muted}
+          />
+        </View>
+
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text
+            numberOfLines={1}
+            style={{ color: theme.colors.text, fontWeight: "900", fontSize: 13 }}
+          >
+            {label}
+          </Text>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: active ? theme.colors.text : theme.colors.muted,
+              marginTop: 5,
+              fontSize: 12,
+            }}
+          >
+            {value}
+          </Text>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
 export default function BookingCareScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -491,6 +574,9 @@ export default function BookingCareScreen() {
       ? formatCreatedAt(draftEditedCreatedAtISO)
       : "Fecha u hora invalida"
     : formatCreatedAt(new Date().toISOString());
+  const isDatePickerActive = mobilePickerMode === "date";
+  const isTimePickerActive = mobilePickerMode === "time";
+  const isAnyMobilePickerActive = mobilePickerMode !== null;
   const registrationPreview = isEditMode
     ? draftEditedCreatedAtISO
       ? selectedTimestampSummary
@@ -937,7 +1023,7 @@ export default function BookingCareScreen() {
                           }}
                         >
                           <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
-                            Guardado actualmente
+                            Actual
                           </Text>
                           <Text
                             style={{
@@ -966,7 +1052,7 @@ export default function BookingCareScreen() {
                           }}
                         >
                           <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
-                            Nuevo seleccionado
+                            Nuevo
                           </Text>
                           <Text
                             style={{
@@ -1028,124 +1114,141 @@ export default function BookingCareScreen() {
                             />
                           </View>
                         </View>
-                      ) : (
-                        <View style={{ gap: 10 }}>
+                                            ) : (
+                        <View
+                          style={{
+                            gap: 12,
+                          }}
+                        >
                           <View style={{ flexDirection: "row", gap: 10 }}>
-                            <Pressable
+                            <InlinePickerActionButton
+                              icon="calendar-month-outline"
+                              label="Editar fecha"
+                              value={eventDateValue || "Seleccionar fecha"}
+                              active={isDatePickerActive}
+                              dimmed={isAnyMobilePickerActive && !isDatePickerActive}
                               onPress={() => setMobilePickerMode("date")}
-                              style={{
-                                flex: 1,
-                                minHeight: 62,
-                                borderRadius: theme.radius.xl,
-                                borderWidth: 1,
-                                borderColor: mobilePickerMode === "date"
-                                  ? "rgba(87,215,255,0.38)"
-                                  : theme.colors.line,
-                                backgroundColor: mobilePickerMode === "date"
-                                  ? "rgba(87,215,255,0.12)"
-                                  : theme.colors.surface,
-                                paddingHorizontal: 14,
-                                paddingVertical: 12,
-                                justifyContent: "center",
-                              }}
-                            >
-                              <Text style={{ color: theme.colors.text, fontWeight: "900" }}>
-                                Cambiar fecha
-                              </Text>
-                              <Text style={{ color: theme.colors.muted, marginTop: 6, fontSize: 12 }}>
-                                {eventDateValue || "Seleccionar fecha"}
-                              </Text>
-                            </Pressable>
-
-                            <Pressable
+                            />
+                            <InlinePickerActionButton
+                              icon="clock-time-four-outline"
+                              label="Editar hora"
+                              value={eventTimeValue || "Seleccionar hora"}
+                              active={isTimePickerActive}
+                              dimmed={isAnyMobilePickerActive && !isTimePickerActive}
                               onPress={() => setMobilePickerMode("time")}
-                              style={{
-                                flex: 1,
-                                minHeight: 62,
-                                borderRadius: theme.radius.xl,
-                                borderWidth: 1,
-                                borderColor: mobilePickerMode === "time"
-                                  ? "rgba(87,215,255,0.38)"
-                                  : theme.colors.line,
-                                backgroundColor: mobilePickerMode === "time"
-                                  ? "rgba(87,215,255,0.12)"
-                                  : theme.colors.surface,
-                                paddingHorizontal: 14,
-                                paddingVertical: 12,
-                                justifyContent: "center",
-                              }}
-                            >
-                              <Text style={{ color: theme.colors.text, fontWeight: "900" }}>
-                                Cambiar hora
-                              </Text>
-                              <Text style={{ color: theme.colors.muted, marginTop: 6, fontSize: 12 }}>
-                                {eventTimeValue || "Seleccionar hora"}
-                              </Text>
-                            </Pressable>
+                            />
                           </View>
 
                           <View
                             style={{
-                              borderRadius: theme.radius.lg,
+                              borderRadius: theme.radius.xl,
                               borderWidth: 1,
-                              borderColor: mobilePickerMode
+                              borderColor: isAnyMobilePickerActive
                                 ? "rgba(87,215,255,0.24)"
-                                : theme.colors.line,
-                              backgroundColor: theme.colors.surface,
-                              padding: 12,
-                              gap: 10,
+                                : "rgba(255,255,255,0.08)",
+                              backgroundColor: isAnyMobilePickerActive
+                                ? "rgba(7,10,18,0.98)"
+                                : "rgba(255,255,255,0.025)",
+                              padding: isAnyMobilePickerActive ? 16 : 14,
+                              gap: 14,
+                              overflow: "hidden",
                             }}
                           >
-                            <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
-                              {mobilePickerMode === "date"
-                                ? "Selector de fecha"
-                                : mobilePickerMode === "time"
-                                  ? "Selector de hora"
-                                  : "Elige una accion arriba"}
-                            </Text>
-                            <Text style={{ color: theme.colors.muted, lineHeight: 18 }}>
-                              {mobilePickerMode === "date"
-                                ? "Toca el dia correcto y luego cambia la hora si hace falta."
-                                : mobilePickerMode === "time"
-                                  ? "Ajusta la hora real del evento antes de guardar."
-                                  : "Usa los botones Cambiar fecha o Cambiar hora para abrir el selector."}
-                            </Text>
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 12,
+                              }}
+                            >
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ color: theme.colors.text, fontWeight: "900" }}>
+                                  {mobilePickerMode === "date"
+                                    ? "Editar fecha del evento"
+                                    : mobilePickerMode === "time"
+                                      ? "Editar hora del evento"
+                                      : "Actualizacion del evento"}
+                                </Text>
+                                <Text style={{ color: theme.colors.muted, lineHeight: 18, marginTop: 4 }}>
+                                  {mobilePickerMode === "date"
+                                    ? "Selecciona la fecha y pulsa Listo."
+                                    : mobilePickerMode === "time"
+                                      ? "Selecciona la hora y pulsa Listo."
+                                      : "Pulsa una accion para ajustar el evento."}
+                                </Text>
+                              </View>
 
-                            {mobilePickerMode === "date" ? (
-                              <DateTimePicker
-                                value={new Date(draftEditedCreatedAtISO ?? editingEvent.createdAtISO)}
-                                mode="date"
-                                display={Platform.OS === "ios" ? "spinner" : "default"}
-                                onChange={onNativeDateChange}
-                              />
-                            ) : null}
+                              {isAnyMobilePickerActive ? (
+                                <Pressable
+                                  onPress={() => setMobilePickerMode(null)}
+                                  style={{
+                                    minHeight: 36,
+                                    paddingHorizontal: 14,
+                                    paddingVertical: 8,
+                                    borderRadius: 999,
+                                    borderWidth: 1,
+                                    borderColor: "rgba(87,215,255,0.28)",
+                                    backgroundColor: "rgba(87,215,255,0.10)",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <Text style={{ color: theme.colors.text, fontWeight: "800", fontSize: 12 }}>
+                                    Listo
+                                  </Text>
+                                </Pressable>
+                              ) : null}
+                            </View>
 
-                            {mobilePickerMode === "time" ? (
-                              <DateTimePicker
-                                value={new Date(draftEditedCreatedAtISO ?? editingEvent.createdAtISO)}
-                                mode="time"
-                                display={Platform.OS === "ios" ? "spinner" : "default"}
-                                onChange={onNativeTimeChange}
-                              />
-                            ) : null}
-
-                            {mobilePickerMode ? (
-                              <Pressable
-                                onPress={() => setMobilePickerMode(null)}
+                            {isAnyMobilePickerActive ? (
+                              <View
                                 style={{
-                                  alignSelf: "flex-start",
-                                  paddingHorizontal: 12,
-                                  paddingVertical: 8,
-                                  borderRadius: 999,
+                                  borderRadius: theme.radius.xl,
                                   borderWidth: 1,
-                                  borderColor: theme.colors.line,
-                                  backgroundColor: theme.colors.surface2,
+                                  borderColor: "rgba(87,215,255,0.16)",
+                                  backgroundColor: "rgba(0,0,0,0.34)",
+                                  paddingVertical: 18,
+                                  paddingHorizontal: 8,
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  shadowColor: "rgba(87,215,255,0.24)",
+                                  shadowOpacity: 0.24,
+                                  shadowRadius: 20,
+                                  shadowOffset: { width: 0, height: 10 },
                                 }}
                               >
-                                <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
-                                  Listo
-                                </Text>
-                              </Pressable>
+                                <View
+                                  style={{
+                                    alignSelf: "stretch",
+                                    borderRadius: theme.radius.xl,
+                                    borderWidth: 1,
+                                    borderColor: "rgba(255,255,255,0.08)",
+                                    backgroundColor: "rgba(11,16,28,0.96)",
+                                    paddingVertical: 8,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  {mobilePickerMode === "date" ? (
+                                    <DateTimePicker
+                                      value={new Date(draftEditedCreatedAtISO ?? editingEvent.createdAtISO)}
+                                      mode="date"
+                                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                                      onChange={onNativeDateChange}
+                                    />
+                                  ) : null}
+
+                                  {mobilePickerMode === "time" ? (
+                                    <DateTimePicker
+                                      value={new Date(draftEditedCreatedAtISO ?? editingEvent.createdAtISO)}
+                                      mode="time"
+                                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                                      onChange={onNativeTimeChange}
+                                    />
+                                  ) : null}
+                                </View>
+                              </View>
                             ) : null}
                           </View>
                         </View>
@@ -1218,24 +1321,7 @@ export default function BookingCareScreen() {
                     />
                   </View>
                 </View>
-              ) : (
-                <View
-                  style={{
-                    marginTop: 12,
-                    borderRadius: theme.radius.lg,
-                    borderWidth: 1,
-                    borderColor: theme.colors.line,
-                    backgroundColor: theme.colors.surface2,
-                    padding: 14,
-                  }}
-                >
-                  <Text style={{ color: theme.colors.muted, lineHeight: 18 }}>
-                    {isEditMode
-                      ? "Selecciona el nuevo tipo o ajusta la nota para guardar el cambio localmente."
-                      : "Selecciona una accion para ver su contexto, escribir la nota y registrarla abajo."}
-                  </Text>
-                </View>
-              )}
+              ) : null}
             </Card>
           ) : (
             <Card style={{ marginTop: theme.spacing(2) }}>
@@ -1299,17 +1385,9 @@ export default function BookingCareScreen() {
         </View>
       </ScrollView>
 
-
     </Screen>
   );
 }
-
-
-
-
-
-
-
 
 
 
