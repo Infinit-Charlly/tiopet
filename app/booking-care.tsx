@@ -164,41 +164,47 @@ function EventTypeTile({
     <View
       style={{
         width: "50%",
-        paddingHorizontal: 5,
-        paddingBottom: 10,
+        paddingHorizontal: 4,
+        paddingBottom: 8,
       }}
     >
       <Pressable
         onPress={onToggle}
         style={{
-          minHeight: 82,
+          minHeight: 72,
           borderRadius: theme.radius.lg,
           borderWidth: 1,
           borderColor: selected ? "rgba(87,215,255,0.52)" : theme.colors.line,
           backgroundColor: selected
-            ? "rgba(87,215,255,0.16)"
+            ? "rgba(87,215,255,0.14)"
             : theme.colors.surface2,
           paddingHorizontal: 12,
-          paddingVertical: 12,
+          paddingVertical: 11,
+          shadowColor: selected ? "rgba(87,215,255,0.38)" : "transparent",
+          shadowOpacity: selected ? 0.16 : 0,
+          shadowRadius: selected ? 14 : 0,
+          shadowOffset: { width: 0, height: 8 },
         }}
       >
         <View
           style={{
             flexDirection: "row",
-            alignItems: "flex-start",
+            alignItems: "center",
             justifyContent: "space-between",
             gap: 10,
           }}
         >
           <View
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 16,
+              width: 36,
+              height: 36,
+              borderRadius: 18,
               alignItems: "center",
               justifyContent: "center",
+              borderWidth: 1,
+              borderColor: selected ? "rgba(87,215,255,0.32)" : "rgba(255,255,255,0.08)",
               backgroundColor: selected
-                ? "rgba(87,215,255,0.20)"
+                ? "rgba(87,215,255,0.18)"
                 : "rgba(255,255,255,0.06)",
             }}
           >
@@ -209,40 +215,64 @@ function EventTypeTile({
             />
           </View>
 
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text
+              numberOfLines={2}
+              style={{
+                color: theme.colors.text,
+                fontWeight: "900",
+                fontSize: 13,
+                lineHeight: 16,
+              }}
+            >
+              {definition.label}
+            </Text>
+            <Text
+              style={{
+                color: selected ? theme.colors.text : theme.colors.muted,
+                fontSize: 11,
+                fontWeight: "800",
+                letterSpacing: 0.2,
+              }}
+            >
+              {selected ? "Activo" : "Tocar para registrar"}
+            </Text>
+          </View>
+
           <View
             style={{
-              width: 20,
-              height: 20,
-              borderRadius: 10,
+              minWidth: selected ? 28 : 22,
+              height: 22,
+              paddingHorizontal: selected ? 8 : 0,
+              borderRadius: 999,
               alignItems: "center",
               justifyContent: "center",
+              borderWidth: 1,
+              borderColor: selected ? "rgba(87,215,255,0.34)" : "rgba(255,255,255,0.08)",
               backgroundColor: selected
                 ? "rgba(87,215,255,0.18)"
-                : "rgba(255,255,255,0.06)",
-              borderWidth: selected ? 1 : 0,
-              borderColor: selected ? "rgba(87,215,255,0.30)" : "transparent",
+                : "rgba(255,255,255,0.04)",
             }}
           >
-            <MaterialCommunityIcons
-              name={selected ? "check" : "plus"}
-              size={13}
-              color={selected ? theme.colors.text : theme.colors.muted}
-            />
+            {selected ? (
+              <MaterialCommunityIcons
+                name="check"
+                size={13}
+                color={theme.colors.text}
+              />
+            ) : (
+              <View
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: theme.colors.muted,
+                  opacity: 0.75,
+                }}
+              />
+            )}
           </View>
         </View>
-
-        <Text
-          numberOfLines={2}
-          style={{
-            color: theme.colors.text,
-            fontWeight: "900",
-            marginTop: 12,
-            fontSize: 13,
-            lineHeight: 16,
-          }}
-        >
-          {definition.label}
-        </Text>
       </Pressable>
     </View>
   );
@@ -493,7 +523,6 @@ function InlinePickerActionButton({
     </Pressable>
   );
 }
-
 export default function BookingCareScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -1253,11 +1282,82 @@ export default function BookingCareScreen() {
                     </View>
                   ) : null}
 
-                  {selectedDefinition.helperText ? (
-                    <Text style={{ color: theme.colors.muted, marginTop: 12, lineHeight: 18 }}>
-                      {selectedDefinition.helperText}
-                    </Text>
-                  ) : null}
+                  <View
+                    style={{
+                      marginTop: 2,
+                      borderRadius: theme.radius.xl,
+                      borderWidth: 1,
+                      borderColor: "rgba(87,215,255,0.24)",
+                      backgroundColor: "rgba(87,215,255,0.07)",
+                      padding: 14,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                      }}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                        <View
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 19,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderWidth: 1,
+                            borderColor: "rgba(87,215,255,0.32)",
+                            backgroundColor: "rgba(87,215,255,0.14)",
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name={getTimelineEventIcon((selectedType ?? "feeding") as any) as any}
+                            size={18}
+                            color={theme.colors.warn}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: theme.colors.muted, fontSize: 11, fontWeight: "800" }}>
+                            {isEditMode ? "Evento en edicion" : "Evento seleccionado"}
+                          </Text>
+                          <Text
+                            style={{
+                              color: theme.colors.text,
+                              fontWeight: "900",
+                              fontSize: 15,
+                              marginTop: 4,
+                            }}
+                          >
+                            {selectedDefinition.label}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: "rgba(87,215,255,0.24)",
+                          backgroundColor: "rgba(7,10,18,0.42)",
+                        }}
+                      >
+                        <Text style={{ color: theme.colors.text, fontSize: 11, fontWeight: "800" }}>
+                          {isEditMode ? "Activo" : "Nuevo"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {selectedDefinition.helperText ? (
+                      <Text style={{ color: theme.colors.muted, marginTop: 12, lineHeight: 18 }}>
+                        {selectedDefinition.helperText}
+                      </Text>
+                    ) : null}
+                  </View>
 
                   <Text style={{ color: theme.colors.muted, marginTop: 14, lineHeight: 18 }}>
                     {selectedDefinition.noteLabel}
@@ -1385,6 +1485,7 @@ export default function BookingCareScreen() {
     </Screen>
   );
 }
+
 
 
 
