@@ -321,7 +321,7 @@ export function getTimelineEventLabel(type: CareTimelineEventType) {
     case "check_out":
       return "Check-out";
     case "feeding":
-      return "Alimentacion";
+      return "Alimento";
     case "snack":
       return "Snack";
     case "water":
@@ -401,4 +401,3 @@ export function getTimelineEventIcon(type: CareTimelineEventType) {
       return "sofa";
   }
 }
-

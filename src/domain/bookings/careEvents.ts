@@ -29,7 +29,7 @@ const BOOKING_CARE_EVENT_DEFINITIONS: Record<
 > = {
   feeding: {
     type: "feeding",
-    label: "Alimentacion",
+    label: "Alimento",
     description: "Registra cuando el peludito ya comio.",
     noteLabel: "Nota opcional",
     notePlaceholder: "Ej. Comio todo y tomo agua.",
