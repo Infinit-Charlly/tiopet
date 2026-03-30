@@ -164,41 +164,41 @@ function EventTypeTile({
     <View
       style={{
         width: "50%",
-        paddingHorizontal: 4,
-        paddingBottom: 8,
+        paddingHorizontal: 5,
+        paddingBottom: 10,
       }}
     >
       <Pressable
         onPress={onToggle}
-        style={{
-          minHeight: 72,
+        style={({ pressed }) => ({
+          minHeight: 96,
           borderRadius: theme.radius.lg,
           borderWidth: 1,
-          borderColor: selected ? "rgba(87,215,255,0.52)" : theme.colors.line,
-          backgroundColor: selected
-            ? "rgba(87,215,255,0.14)"
-            : theme.colors.surface2,
-          paddingHorizontal: 12,
-          paddingVertical: 11,
-          shadowColor: selected ? "rgba(87,215,255,0.38)" : "transparent",
-          shadowOpacity: selected ? 0.16 : 0,
-          shadowRadius: selected ? 14 : 0,
+          borderColor: selected ? "rgba(87,215,255,0.48)" : "rgba(255,255,255,0.08)",
+          backgroundColor: selected ? "rgba(87,215,255,0.12)" : theme.colors.surface2,
+          paddingHorizontal: 13,
+          paddingVertical: 12,
+          justifyContent: "space-between",
+          shadowColor: selected ? "rgba(87,215,255,0.34)" : "transparent",
+          shadowOpacity: selected ? 0.18 : 0,
+          shadowRadius: selected ? 16 : 0,
           shadowOffset: { width: 0, height: 8 },
-        }}
+          opacity: pressed ? 0.96 : 1,
+          transform: [{ scale: pressed ? 0.988 : 1 }],
+        })}
       >
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
-            justifyContent: "space-between",
-            gap: 10,
+            gap: 6,
           }}
         >
           <View
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
+              width: 30,
+              height: 30,
+              borderRadius: 15,
               alignItems: "center",
               justifyContent: "center",
               borderWidth: 1,
@@ -210,67 +210,90 @@ function EventTypeTile({
           >
             <MaterialCommunityIcons
               name={getTimelineEventIcon(type) as any}
-              size={17}
+              size={14}
               color={theme.colors.warn}
             />
           </View>
 
-          <View style={{ flex: 1, gap: 6 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text
               numberOfLines={2}
               style={{
                 color: theme.colors.text,
                 fontWeight: "900",
-                fontSize: 13,
-                lineHeight: 16,
+                fontSize: 14,
+                lineHeight: 17,
+                flex: 1,
+                flexShrink: 1,
               }}
             >
               {definition.label}
             </Text>
+          </View>
+        </View>
+
+        <View
+          style={{
+            marginTop: 14,
+            paddingTop: 12,
+            borderTopWidth: 1,
+            borderTopColor: selected
+              ? "rgba(87,215,255,0.20)"
+              : "rgba(255,255,255,0.06)",
+          }}
+        >
+          <View
+            style={{
+              alignSelf: "stretch",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+              minHeight: 32,
+              paddingLeft: 10,
+              paddingRight: 8,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: selected
+                ? "rgba(87,215,255,0.28)"
+                : "rgba(255,255,255,0.08)",
+              backgroundColor: selected
+                ? "rgba(87,215,255,0.14)"
+                : "rgba(255,255,255,0.03)",
+            }}
+          >
             <Text
+              numberOfLines={1}
               style={{
                 color: selected ? theme.colors.text : theme.colors.muted,
                 fontSize: 11,
-                fontWeight: "800",
+                fontWeight: "900",
                 letterSpacing: 0.2,
+                flex: 1,
+                flexShrink: 1,
               }}
             >
-              {selected ? "Activo" : "Tocar para registrar"}
+              {selected ? "Activo" : "Registrar"}
             </Text>
-          </View>
 
-          <View
-            style={{
-              minWidth: selected ? 28 : 22,
-              height: 22,
-              paddingHorizontal: selected ? 8 : 0,
-              borderRadius: 999,
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 1,
-              borderColor: selected ? "rgba(87,215,255,0.34)" : "rgba(255,255,255,0.08)",
-              backgroundColor: selected
-                ? "rgba(87,215,255,0.18)"
-                : "rgba(255,255,255,0.04)",
-            }}
-          >
-            {selected ? (
+            <View
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: selected
+                  ? "rgba(87,215,255,0.22)"
+                  : "rgba(255,183,77,0.12)",
+              }}
+              >
               <MaterialCommunityIcons
-                name="check"
+                name={selected ? "check" : "plus"}
                 size={13}
-                color={theme.colors.text}
+                color={selected ? theme.colors.text : theme.colors.warn}
               />
-            ) : (
-              <View
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 3,
-                  backgroundColor: theme.colors.muted,
-                  opacity: 0.75,
-                }}
-              />
-            )}
+            </View>
           </View>
         </View>
       </Pressable>
@@ -464,62 +487,71 @@ function InlinePickerActionButton({
       onPress={onPress}
       style={{
         flex: 1,
-        minHeight: 108,
-        borderRadius: theme.radius.xl,
+        minHeight: 92,
+        borderRadius: theme.radius.lg,
         borderWidth: 1,
         borderColor: active
-          ? "rgba(87,215,255,0.48)"
+          ? "rgba(87,215,255,0.44)"
           : dimmed
-            ? "rgba(255,255,255,0.08)"
-            : "rgba(255,255,255,0.12)",
+            ? "rgba(255,255,255,0.06)"
+            : "rgba(255,255,255,0.10)",
         backgroundColor: active
-          ? "rgba(87,215,255,0.12)"
+          ? "rgba(87,215,255,0.10)"
           : dimmed
-            ? "rgba(255,255,255,0.025)"
-            : "rgba(255,255,255,0.04)",
-        paddingHorizontal: 14,
-        paddingVertical: 14,
-        alignItems: "center",
+            ? "rgba(255,255,255,0.018)"
+            : "rgba(255,255,255,0.03)",
+        paddingHorizontal: 12,
+        paddingVertical: 12,
         justifyContent: "space-between",
-        shadowColor: active ? "rgba(87,215,255,0.42)" : "transparent",
-        shadowOpacity: active ? 0.18 : 0,
-        shadowRadius: active ? 14 : 0,
+        gap: 10,
+        opacity: dimmed ? 0.76 : 1,
+        shadowColor: active ? "rgba(87,215,255,0.36)" : "transparent",
+        shadowOpacity: active ? 0.16 : 0,
+        shadowRadius: active ? 12 : 0,
         shadowOffset: { width: 0, height: 8 },
       }}
     >
-      <Text
+      <View
         style={{
-          color: theme.colors.text,
-          fontWeight: "900",
-          fontSize: 13,
-          textAlign: "center",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
         }}
       >
-        {label}
-      </Text>
+        <Text
+          style={{
+            color: theme.colors.text,
+            fontWeight: "900",
+            fontSize: 13,
+            flex: 1,
+          }}
+        >
+          {label}
+        </Text>
+        <View
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: active ? "rgba(87,215,255,0.16)" : "rgba(255,255,255,0.05)",
+          }}
+        >
+          <Text style={{ fontSize: 18, lineHeight: 20 }}>{icon}</Text>
+        </View>
+      </View>
       <Text
         style={{
           color: active ? theme.colors.text : theme.colors.muted,
-          fontSize: 15,
+          fontSize: 14,
           fontWeight: "800",
-          textAlign: "center",
+          lineHeight: 18,
         }}
       >
         {value}
       </Text>
-      <View
-        style={{
-          minWidth: 34,
-          minHeight: 34,
-          paddingHorizontal: 8,
-          borderRadius: 17,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: active ? "rgba(87,215,255,0.16)" : "rgba(255,255,255,0.06)",
-        }}
-      >
-        <Text style={{ fontSize: 18, lineHeight: 20 }}>{icon}</Text>
-      </View>
     </Pressable>
   );
 }
@@ -1018,13 +1050,13 @@ export default function BookingCareScreen() {
                   {isEditMode ? (
                     <View
                       style={{
-                        marginTop: 12,
-                        borderRadius: theme.radius.md,
+                        marginTop: 10,
+                        borderRadius: theme.radius.lg,
                         borderWidth: 1,
-                        borderColor: "rgba(87,215,255,0.24)",
-                        backgroundColor: "rgba(87,215,255,0.08)",
+                        borderColor: "rgba(87,215,255,0.18)",
+                        backgroundColor: "rgba(87,215,255,0.05)",
                         padding: 12,
-                        gap: 12,
+                        gap: 10,
                       }}
                     >
                       <View>
@@ -1032,30 +1064,47 @@ export default function BookingCareScreen() {
                           Fecha y hora del evento
                         </Text>
                         <Text style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}>
-                          Corrige el momento real del cuidado para mantener el timeline en orden.
+                          Corrige el momento real para mantener el timeline en orden.
                         </Text>
                       </View>
 
-                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "stretch",
+                          gap: 12,
+                          borderRadius: theme.radius.lg,
+                          borderWidth: 1,
+                          borderColor: "rgba(255,255,255,0.08)",
+                          backgroundColor: "rgba(255,255,255,0.03)",
+                          paddingHorizontal: 12,
+                          paddingVertical: 10,
+                        }}
+                      >
                         <View
                           style={{
                             flex: 1,
-                            minWidth: 150,
-                            borderRadius: theme.radius.md,
-                            borderWidth: 1,
-                            borderColor: "rgba(255,255,255,0.10)",
-                            backgroundColor: theme.colors.surface,
-                            padding: 12,
+                            justifyContent: "center",
                           }}
                         >
-                          <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
+                          <Text
+                            style={{
+                              color: theme.colors.muted,
+                              fontSize: 11,
+                              fontWeight: "800",
+                              textTransform: "uppercase",
+                              letterSpacing: 0.5,
+                            }}
+                          >
                             Actual
                           </Text>
                           <Text
                             style={{
                               color: theme.colors.text,
                               fontWeight: "900",
-                              marginTop: 6,
+                              marginTop: 5,
+                              fontSize: 13,
+                              lineHeight: 18,
                             }}
                           >
                             {formatCreatedAt(editingEvent.createdAtISO)}
@@ -1064,27 +1113,37 @@ export default function BookingCareScreen() {
 
                         <View
                           style={{
+                            width: 1,
+                            backgroundColor: "rgba(255,255,255,0.08)",
+                          }}
+                        />
+
+                        <View
+                          style={{
                             flex: 1,
-                            minWidth: 150,
-                            borderRadius: theme.radius.md,
-                            borderWidth: 1,
-                            borderColor: draftEditedCreatedAtISO
-                              ? "rgba(87,215,255,0.30)"
-                              : "rgba(239,68,68,0.32)",
-                            backgroundColor: draftEditedCreatedAtISO
-                              ? "rgba(87,215,255,0.12)"
-                              : "rgba(239,68,68,0.10)",
-                            padding: 12,
+                            justifyContent: "center",
                           }}
                         >
-                          <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
+                          <Text
+                            style={{
+                              color: draftEditedCreatedAtISO
+                                ? "rgba(87,215,255,0.92)"
+                                : theme.colors.muted,
+                              fontSize: 11,
+                              fontWeight: "800",
+                              textTransform: "uppercase",
+                              letterSpacing: 0.5,
+                            }}
+                          >
                             Nuevo
                           </Text>
                           <Text
                             style={{
                               color: theme.colors.text,
                               fontWeight: "900",
-                              marginTop: 6,
+                              marginTop: 5,
+                              fontSize: 13,
+                              lineHeight: 18,
                             }}
                           >
                             {selectedTimestampSummary}
@@ -1140,13 +1199,13 @@ export default function BookingCareScreen() {
                             />
                           </View>
                         </View>
-                                            ) : (
+                      ) : (
                         <View
                           style={{
-                            gap: 12,
+                            gap: 10,
                           }}
                         >
-                          <View style={{ flexDirection: "row", gap: 10 }}>
+                          <View style={{ flexDirection: "row", gap: 8 }}>
                             <InlinePickerActionButton
                               icon="📅"
                               label="Editar fecha"
@@ -1165,53 +1224,56 @@ export default function BookingCareScreen() {
                             />
                           </View>
 
-                          <View
-                            style={{
-                              borderRadius: theme.radius.xl,
-                              borderWidth: 1,
-                              borderColor: isAnyMobilePickerActive
-                                ? "rgba(87,215,255,0.24)"
-                                : "rgba(255,255,255,0.08)",
-                              backgroundColor: isAnyMobilePickerActive
-                                ? "rgba(7,10,18,0.98)"
-                                : "rgba(255,255,255,0.025)",
-                              padding: isAnyMobilePickerActive ? 16 : 14,
-                              gap: 14,
-                              overflow: "hidden",
-                            }}
-                          >
+                          {isAnyMobilePickerActive ? (
                             <View
                               style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 12,
+                                borderRadius: theme.radius.lg,
+                                borderWidth: 1,
+                                borderColor: "rgba(87,215,255,0.24)",
+                                backgroundColor: "rgba(7,10,18,0.92)",
+                                paddingHorizontal: 14,
+                                paddingTop: 12,
+                                paddingBottom: Platform.OS === "ios" ? 6 : 12,
+                                gap: 10,
+                                shadowColor: "rgba(87,215,255,0.24)",
+                                shadowOpacity: 0.16,
+                                shadowRadius: 18,
+                                shadowOffset: { width: 0, height: 10 },
                               }}
                             >
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ color: theme.colors.text, fontWeight: "900" }}>
-                                  {mobilePickerMode === "date"
-                                    ? "Editar fecha del evento"
-                                    : mobilePickerMode === "time"
-                                      ? "Editar hora del evento"
-                                      : "Actualizacion del evento"}
-                                </Text>
-                                <Text style={{ color: theme.colors.muted, lineHeight: 18, marginTop: 4 }}>
-                                  {mobilePickerMode === "date"
-                                    ? "Selecciona la fecha y pulsa Listo."
-                                    : mobilePickerMode === "time"
-                                      ? "Selecciona la hora y pulsa Listo."
-                                      : "Pulsa una accion para ajustar el evento."}
-                                </Text>
-                              </View>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  gap: 12,
+                                }}
+                              >
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ color: theme.colors.text, fontWeight: "900" }}>
+                                    {mobilePickerMode === "date"
+                                      ? "Editar fecha del evento"
+                                      : "Editar hora del evento"}
+                                  </Text>
+                                  <Text
+                                    style={{
+                                      color: theme.colors.muted,
+                                      lineHeight: 18,
+                                      marginTop: 4,
+                                    }}
+                                  >
+                                    {mobilePickerMode === "date"
+                                      ? "Selecciona la fecha real y pulsa Listo."
+                                      : "Selecciona la hora real y pulsa Listo."}
+                                  </Text>
+                                </View>
 
-                              {isAnyMobilePickerActive ? (
                                 <Pressable
                                   onPress={() => setMobilePickerMode(null)}
                                   style={{
-                                    minHeight: 36,
-                                    paddingHorizontal: 14,
-                                    paddingVertical: 8,
+                                    minHeight: 34,
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 7,
                                     borderRadius: 999,
                                     borderWidth: 1,
                                     borderColor: "rgba(87,215,255,0.28)",
@@ -1220,146 +1282,102 @@ export default function BookingCareScreen() {
                                     justifyContent: "center",
                                   }}
                                 >
-                                  <Text style={{ color: theme.colors.text, fontWeight: "800", fontSize: 12 }}>
+                                  <Text
+                                    style={{
+                                      color: theme.colors.text,
+                                      fontWeight: "800",
+                                      fontSize: 12,
+                                    }}
+                                  >
                                     Listo
                                   </Text>
                                 </Pressable>
-                              ) : null}
-                            </View>
+                              </View>
 
-                            {isAnyMobilePickerActive ? (
                               <View
                                 style={{
-                                  borderRadius: theme.radius.xl,
-                                  borderWidth: 1,
-                                  borderColor: "rgba(87,215,255,0.16)",
-                                  backgroundColor: "rgba(0,0,0,0.34)",
-                                  paddingVertical: 18,
-                                  paddingHorizontal: 8,
                                   alignItems: "center",
                                   justifyContent: "center",
-                                  shadowColor: "rgba(87,215,255,0.24)",
-                                  shadowOpacity: 0.24,
-                                  shadowRadius: 20,
-                                  shadowOffset: { width: 0, height: 10 },
+                                  paddingTop: 2,
                                 }}
                               >
-                                <View
-                                  style={{
-                                    alignSelf: "stretch",
-                                    borderRadius: theme.radius.xl,
-                                    borderWidth: 1,
-                                    borderColor: "rgba(255,255,255,0.08)",
-                                    backgroundColor: "rgba(11,16,28,0.96)",
-                                    paddingVertical: 8,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                  }}
-                                >
-                                  {mobilePickerMode === "date" ? (
-                                    <DateTimePicker
-                                      value={new Date(draftEditedCreatedAtISO ?? editingEvent.createdAtISO)}
-                                      mode="date"
-                                      display={Platform.OS === "ios" ? "spinner" : "default"}
-                                      onChange={onNativeDateChange}
-                                    />
-                                  ) : null}
+                                {mobilePickerMode === "date" ? (
+                                  <DateTimePicker
+                                    value={new Date(draftEditedCreatedAtISO ?? editingEvent.createdAtISO)}
+                                    mode="date"
+                                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                                    onChange={onNativeDateChange}
+                                  />
+                                ) : null}
 
-                                  {mobilePickerMode === "time" ? (
-                                    <DateTimePicker
-                                      value={new Date(draftEditedCreatedAtISO ?? editingEvent.createdAtISO)}
-                                      mode="time"
-                                      display={Platform.OS === "ios" ? "spinner" : "default"}
-                                      onChange={onNativeTimeChange}
-                                    />
-                                  ) : null}
-                                </View>
+                                {mobilePickerMode === "time" ? (
+                                  <DateTimePicker
+                                    value={new Date(draftEditedCreatedAtISO ?? editingEvent.createdAtISO)}
+                                    mode="time"
+                                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                                    onChange={onNativeTimeChange}
+                                  />
+                                ) : null}
                               </View>
-                            ) : null}
-                          </View>
+                            </View>
+                          ) : (
+                            <Text
+                              style={{
+                                color: theme.colors.muted,
+                                fontSize: 12,
+                                lineHeight: 17,
+                              }}
+                            >
+                              Toca fecha u hora para abrir el selector y ajustar el evento.
+                            </Text>
+                          )}
                         </View>
                       )}
                     </View>
                   ) : null}
 
-                  <View
-                    style={{
-                      marginTop: 2,
-                      borderRadius: theme.radius.xl,
-                      borderWidth: 1,
-                      borderColor: "rgba(87,215,255,0.24)",
-                      backgroundColor: "rgba(87,215,255,0.07)",
-                      padding: 14,
-                    }}
-                  >
+                  {selectedDefinition.helperText ? (
                     <View
                       style={{
+                        marginTop: 4,
                         flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 12,
+                        alignItems: "flex-start",
+                        gap: 10,
+                        borderRadius: theme.radius.lg,
+                        borderWidth: 1,
+                        borderColor: "rgba(87,215,255,0.18)",
+                        backgroundColor: "rgba(87,215,255,0.05)",
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
                       }}
                     >
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
-                        <View
-                          style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 19,
-                            alignItems: "center",
-                            justifyContent: "center",
-                            borderWidth: 1,
-                            borderColor: "rgba(87,215,255,0.32)",
-                            backgroundColor: "rgba(87,215,255,0.14)",
-                          }}
-                        >
-                          <MaterialCommunityIcons
-                            name={getTimelineEventIcon((selectedType ?? "feeding") as any) as any}
-                            size={18}
-                            color={theme.colors.warn}
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ color: theme.colors.muted, fontSize: 11, fontWeight: "800" }}>
-                            {isEditMode ? "Evento en edicion" : "Evento seleccionado"}
-                          </Text>
-                          <Text
-                            style={{
-                              color: theme.colors.text,
-                              fontWeight: "900",
-                              fontSize: 15,
-                              marginTop: 4,
-                            }}
-                          >
-                            {selectedDefinition.label}
-                          </Text>
-                        </View>
-                      </View>
-
                       <View
                         style={{
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          borderRadius: 999,
+                          width: 24,
+                          height: 24,
+                          borderRadius: 12,
+                          alignItems: "center",
+                          justifyContent: "center",
                           borderWidth: 1,
-                          borderColor: "rgba(87,215,255,0.24)",
-                          backgroundColor: "rgba(7,10,18,0.42)",
+                          borderColor: "rgba(87,215,255,0.22)",
+                          backgroundColor: "rgba(87,215,255,0.10)",
+                          marginTop: 1,
                         }}
                       >
-                        <Text style={{ color: theme.colors.text, fontSize: 11, fontWeight: "800" }}>
-                          {isEditMode ? "Activo" : "Nuevo"}
-                        </Text>
+                        <MaterialCommunityIcons
+                          name="information-outline"
+                          size={14}
+                          color={theme.colors.warn}
+                        />
                       </View>
-                    </View>
 
-                    {selectedDefinition.helperText ? (
-                      <Text style={{ color: theme.colors.muted, marginTop: 12, lineHeight: 18 }}>
+                      <Text style={{ flex: 1, color: theme.colors.muted, lineHeight: 18 }}>
                         {selectedDefinition.helperText}
                       </Text>
-                    ) : null}
-                  </View>
+                    </View>
+                  ) : null}
 
-                  <Text style={{ color: theme.colors.muted, marginTop: 14, lineHeight: 18 }}>
+                  <Text style={{ color: theme.colors.muted, marginTop: 10, lineHeight: 18 }}>
                     {selectedDefinition.noteLabel}
                   </Text>
                   <TextInput
@@ -1370,7 +1388,7 @@ export default function BookingCareScreen() {
                     placeholderTextColor={theme.colors.muted}
                     textAlignVertical="top"
                     style={{
-                      marginTop: 10,
+                      marginTop: 8,
                       minHeight: 110,
                       borderWidth: 1,
                       borderColor: theme.colors.line,
@@ -1384,7 +1402,7 @@ export default function BookingCareScreen() {
 
                   <View
                     style={{
-                      marginTop: 12,
+                      marginTop: 10,
                       flexDirection: "row",
                       alignItems: "center",
                       gap: 8,
