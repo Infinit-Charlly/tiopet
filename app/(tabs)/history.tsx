@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
@@ -132,6 +133,55 @@ function formatTimelineDate(iso?: string) {
 
 function getTimelineActorLabel(actor?: Booking["timeline"][number]["actor"]) {
   return actor === "caregiver" ? "Cuidador" : "Sistema";
+}
+
+function TimelinePhotoPreview({ uri }: { uri: string }) {
+  return (
+    <View
+      style={{
+        marginTop: 10,
+        width: 104,
+        height: 104,
+        borderRadius: theme.radius.lg,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(87,215,255,0.22)",
+        backgroundColor: "rgba(255,255,255,0.03)",
+      }}
+    >
+      <Image
+        source={{ uri }}
+        contentFit="cover"
+        transition={120}
+        style={{ width: "100%", height: "100%" }}
+      />
+      <View
+        style={{
+          position: "absolute",
+          left: 8,
+          right: 8,
+          bottom: 8,
+          borderRadius: 999,
+          paddingHorizontal: 8,
+          paddingVertical: 5,
+          backgroundColor: "rgba(7,10,18,0.78)",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.08)",
+        }}
+      >
+        <Text
+          style={{
+            color: theme.colors.text,
+            fontSize: 11,
+            fontWeight: "900",
+            textAlign: "center",
+          }}
+        >
+          Foto local
+        </Text>
+      </View>
+    </View>
+  );
 }
 
 function Line({
@@ -282,13 +332,20 @@ function TimelineRow({ event }: { event: Booking["timeline"][number] }) {
           </Text>
         ) : null}
 
+        {event.type === "photo_update" && event.photoUri ? (
+          <TimelinePhotoPreview uri={event.photoUri} />
+        ) : null}
+
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
             flexWrap: "wrap",
             gap: 8,
-            marginTop: event.note ? 8 : 6,
+            marginTop:
+              event.note || (event.type === "photo_update" && event.photoUri)
+                ? 10
+                : 6,
           }}
         >
           <Text

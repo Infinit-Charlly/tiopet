@@ -85,6 +85,7 @@ type TimelineEventPatch = {
   type?: BookingCareEventType;
   note?: string;
   createdAtISO?: string;
+  photoUri?: string | null;
 };
 
 type BookingsState = {
@@ -380,6 +381,7 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
           ...event,
           actor: event.actor ?? "caregiver",
           note: validation.note,
+          photoUri: event.photoUri,
           createdAtISO: nextCreatedAtISO,
         });
       }),
@@ -477,6 +479,10 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
           type: nextType,
           note: validation.note,
           createdAtISO: nextCreatedAtISO,
+          photoUri:
+            patch.photoUri === null
+              ? undefined
+              : patch.photoUri ?? currentEvent.photoUri,
         };
 
         result = { ok: true };
@@ -484,7 +490,8 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
         if (
           updatedEvent.type === currentEvent.type &&
           updatedEvent.note === currentEvent.note &&
-          updatedEvent.createdAtISO === currentEvent.createdAtISO
+          updatedEvent.createdAtISO === currentEvent.createdAtISO &&
+          updatedEvent.photoUri === currentEvent.photoUri
         ) {
           return booking;
         }

@@ -42,6 +42,12 @@
           }
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TioPet necesita acceso a tus fotos para adjuntar imagenes locales al timeline de cuidado."
+        }
+      ],
       "expo-web-browser"
     ],
     "experiments": {

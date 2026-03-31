@@ -2,6 +2,8 @@ import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -85,6 +87,110 @@ function formatTimelineDate(iso?: string) {
 
 function getTimelineActorLabel(actor?: CareTimelineEvent["actor"]) {
   return actor === "caregiver" ? "Cuidador" : "Sistema";
+}
+
+function TimelinePhotoPreview({
+  uri,
+  label = "Foto local",
+}: {
+  uri: string;
+  label?: string;
+}) {
+  return (
+    <View
+      style={{
+        marginTop: 10,
+        width: 108,
+        height: 108,
+        borderRadius: theme.radius.lg,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(87,215,255,0.22)",
+        backgroundColor: "rgba(255,255,255,0.03)",
+      }}
+    >
+      <Image
+        source={{ uri }}
+        contentFit="cover"
+        transition={120}
+        style={{ width: "100%", height: "100%" }}
+      />
+      <View
+        style={{
+          position: "absolute",
+          left: 8,
+          right: 8,
+          bottom: 8,
+          borderRadius: 999,
+          paddingHorizontal: 8,
+          paddingVertical: 5,
+          backgroundColor: "rgba(7,10,18,0.78)",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.08)",
+        }}
+      >
+        <Text
+          numberOfLines={1}
+          style={{
+            color: theme.colors.text,
+            fontSize: 11,
+            fontWeight: "900",
+            textAlign: "center",
+          }}
+        >
+          {label}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function AttachmentActionButton({
+  icon,
+  label,
+  tone = "accent",
+  disabled,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  label: string;
+  tone?: "accent" | "danger";
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  const borderColor =
+    tone === "danger" ? "rgba(239,68,68,0.28)" : "rgba(87,215,255,0.24)";
+  const backgroundColor =
+    tone === "danger" ? "rgba(239,68,68,0.10)" : "rgba(87,215,255,0.10)";
+
+  return (
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: 38,
+        paddingHorizontal: 12,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor,
+        backgroundColor,
+        alignItems: "center",
+        justifyContent: "center",
+        flexDirection: "row",
+        gap: 7,
+        opacity: disabled ? 0.5 : pressed ? 0.9 : 1,
+      })}
+    >
+      <MaterialCommunityIcons
+        name={icon}
+        size={15}
+        color={theme.colors.text}
+      />
+      <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "800" }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
 }
 
 function padDatePart(value: number) {
@@ -453,13 +559,20 @@ function TimelinePreviewRow({
             </Text>
           ) : null}
 
+          {event.type === "photo_update" && event.photoUri ? (
+            <TimelinePhotoPreview uri={event.photoUri} />
+          ) : null}
+
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
               flexWrap: "wrap",
               gap: 8,
-              marginTop: event.note ? 8 : 6,
+              marginTop:
+                event.note || (event.type === "photo_update" && event.photoUri)
+                  ? 10
+                  : 6,
             }}
           >
             <Text
@@ -689,6 +802,8 @@ export default function BookingCareScreen() {
   );
   const [selectedType, setSelectedType] = useState<BookingCareEventType | null>(null);
   const [note, setNote] = useState("");
+  const [selectedPhotoUri, setSelectedPhotoUri] = useState<string | null>(null);
+  const [photoPickerBusy, setPhotoPickerBusy] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventDateValue, setEventDateValue] = useState("");
   const [eventTimeValue, setEventTimeValue] = useState("");
@@ -721,6 +836,8 @@ export default function BookingCareScreen() {
     setEditingEventId(null);
     setSelectedType(null);
     setNote("");
+    setSelectedPhotoUri(null);
+    setPhotoPickerBusy(false);
     setEventDateValue("");
     setEventTimeValue("");
     setMobilePickerMode(null);
@@ -766,6 +883,21 @@ export default function BookingCareScreen() {
   const selectedDefinition = selectedType
     ? getBookingCareEventDefinition(selectedType)
     : null;
+  const isPhotoUpdateSelected = selectedType === "photo_update";
+  const hasAttachedPhoto =
+    typeof selectedPhotoUri === "string" && selectedPhotoUri.trim().length > 0;
+  const selectedDescription =
+    selectedDefinition && isPhotoUpdateSelected
+      ? "Guarda una foto local del momento con una nota opcional."
+      : selectedDefinition?.description;
+  const selectedHelperText =
+    selectedDefinition && isPhotoUpdateSelected
+      ? "La imagen se guarda solo en este dispositivo como referencia local del timeline."
+      : selectedDefinition?.helperText;
+  const selectedNoteLabel =
+    selectedDefinition && isPhotoUpdateSelected
+      ? "Pie de foto opcional"
+      : selectedDefinition?.noteLabel;
   const recentEvents = sortTimelineEventsDescending(booking.timeline).slice(0, 5);
   const draftEditedCreatedAtISO = isEditMode
     ? buildEditedCreatedAtISO(eventDateValue, eventTimeValue)
@@ -834,8 +966,67 @@ export default function BookingCareScreen() {
     setEditingEventId(event.id);
     setSelectedType(event.type as BookingCareEventType);
     setNote(event.note ?? "");
+    setSelectedPhotoUri(event.photoUri ?? null);
     setEventDateValue(formatDateInputValue(event.createdAtISO));
     setEventTimeValue(formatTimeInputValue(event.createdAtISO));
+  };
+
+  const pickPhotoAttachment = async () => {
+    if (
+      !canRegister ||
+      registerSubmissionLockRef.current ||
+      isRegisterFeedbackActive ||
+      photoPickerBusy
+    ) {
+      return;
+    }
+
+    try {
+      setPhotoPickerBusy(true);
+
+      if (Platform.OS !== "web") {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+        if (!permission.granted) {
+          Alert.alert(
+            "Permiso requerido",
+            "Necesitamos acceso a tus fotos para adjuntar una imagen local al timeline.",
+          );
+          return;
+        }
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        selectionLimit: 1,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const nextAsset = result.assets[0];
+
+      if (!nextAsset?.uri) {
+        Alert.alert(
+          "No se pudo adjuntar",
+          "La imagen seleccionada no tiene una referencia local valida.",
+        );
+        return;
+      }
+
+      setSelectedPhotoUri(nextAsset.uri);
+    } catch {
+      Alert.alert(
+        "No se pudo abrir la galeria",
+        "Intenta de nuevo para adjuntar una foto local al evento.",
+      );
+    } finally {
+      setPhotoPickerBusy(false);
+    }
   };
 
   const onNativeDateChange = (
@@ -872,9 +1063,18 @@ export default function BookingCareScreen() {
       type: selectedType,
       note,
     });
+    const normalizedPhotoUri = hasAttachedPhoto ? selectedPhotoUri.trim() : undefined;
 
     if (!validation.ok) {
       Alert.alert("Falta informacion", validation.error);
+      return;
+    }
+
+    if (selectedType === "photo_update" && !validation.note && !normalizedPhotoUri) {
+      Alert.alert(
+        "Falta la foto o el texto",
+        "Adjunta una foto local o agrega un pie de foto antes de guardar este update.",
+      );
       return;
     }
 
@@ -893,6 +1093,7 @@ export default function BookingCareScreen() {
         type: selectedType,
         note: validation.note ?? "",
         createdAtISO: nextCreatedAtISO,
+        photoUri: selectedType === "photo_update" ? normalizedPhotoUri ?? null : null,
       });
 
       if (!result.ok) {
@@ -911,6 +1112,7 @@ export default function BookingCareScreen() {
       type: selectedType,
       actor: "caregiver",
       note: validation.note,
+      photoUri: selectedType === "photo_update" ? normalizedPhotoUri : undefined,
     });
 
     if (!result.ok) {
@@ -1214,7 +1416,7 @@ export default function BookingCareScreen() {
                             lineHeight: 18,
                           }}
                         >
-                          {selectedDefinition.description}
+                          {selectedDescription}
                         </Text>
                       </View>
                     </View>
@@ -1529,7 +1731,7 @@ export default function BookingCareScreen() {
                     </View>
                   ) : null}
 
-                  {selectedDefinition.helperText ? (
+                  {selectedHelperText ? (
                     <View
                       style={{
                         marginTop: 4,
@@ -1565,13 +1767,147 @@ export default function BookingCareScreen() {
                       </View>
 
                       <Text style={{ flex: 1, color: theme.colors.muted, lineHeight: 18 }}>
-                        {selectedDefinition.helperText}
+                        {selectedHelperText}
                       </Text>
                     </View>
                   ) : null}
 
+                  {isPhotoUpdateSelected ? (
+                    <View
+                      style={{
+                        marginTop: 12,
+                        borderRadius: theme.radius.lg,
+                        borderWidth: 1,
+                        borderColor: hasAttachedPhoto
+                          ? "rgba(87,215,255,0.24)"
+                          : "rgba(255,255,255,0.08)",
+                        backgroundColor: hasAttachedPhoto
+                          ? "rgba(87,215,255,0.06)"
+                          : "rgba(255,255,255,0.03)",
+                        padding: 12,
+                        gap: 12,
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "flex-start",
+                          gap: 12,
+                        }}
+                      >
+                        {hasAttachedPhoto ? (
+                          <TimelinePhotoPreview
+                            uri={selectedPhotoUri!}
+                            label={isEditMode ? "Foto lista" : "Adjunta"}
+                          />
+                        ) : (
+                          <View
+                            style={{
+                              width: 108,
+                              height: 108,
+                              borderRadius: theme.radius.lg,
+                              borderWidth: 1,
+                              borderColor: "rgba(255,255,255,0.08)",
+                              backgroundColor: "rgba(255,255,255,0.02)",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: 12,
+                              gap: 8,
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 20,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: "rgba(255,183,77,0.10)",
+                              }}
+                            >
+                              <MaterialCommunityIcons
+                                name="image-plus"
+                                size={18}
+                                color={theme.colors.warn}
+                              />
+                            </View>
+                            <Text
+                              style={{
+                                color: theme.colors.muted,
+                                fontSize: 11,
+                                fontWeight: "800",
+                                textAlign: "center",
+                                lineHeight: 15,
+                              }}
+                            >
+                              Sin foto adjunta
+                            </Text>
+                          </View>
+                        )}
+
+                        <View style={{ flex: 1, gap: 10 }}>
+                          <View>
+                            <Text
+                              style={{
+                                color: theme.colors.text,
+                                fontWeight: "900",
+                                fontSize: 14,
+                              }}
+                            >
+                              Imagen local del update
+                            </Text>
+                            <Text
+                              style={{
+                                color: theme.colors.muted,
+                                lineHeight: 18,
+                                marginTop: 5,
+                              }}
+                            >
+                              {hasAttachedPhoto
+                                ? "La foto quedara guardada en este dispositivo como parte del timeline."
+                                : "Puedes guardar solo el pie de foto, pero una imagen le da mas contexto al update."}
+                            </Text>
+                          </View>
+
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              flexWrap: "wrap",
+                              gap: 8,
+                            }}
+                          >
+                            <AttachmentActionButton
+                              icon={hasAttachedPhoto ? "image-edit-outline" : "image-plus"}
+                              label={
+                                photoPickerBusy
+                                  ? "Abriendo..."
+                                  : hasAttachedPhoto
+                                    ? "Reemplazar"
+                                    : "Adjuntar foto"
+                              }
+                              disabled={isRegisterFeedbackActive || photoPickerBusy}
+                              onPress={() => {
+                                void pickPhotoAttachment();
+                              }}
+                            />
+
+                            {hasAttachedPhoto ? (
+                              <AttachmentActionButton
+                                icon="trash-can-outline"
+                                label="Quitar"
+                                tone="danger"
+                                disabled={isRegisterFeedbackActive || photoPickerBusy}
+                                onPress={() => setSelectedPhotoUri(null)}
+                              />
+                            ) : null}
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  ) : null}
+
                   <Text style={{ color: theme.colors.muted, marginTop: 10, lineHeight: 18 }}>
-                    {selectedDefinition.noteLabel}
+                    {selectedNoteLabel}
                   </Text>
                   <TextInput
                     value={note}
