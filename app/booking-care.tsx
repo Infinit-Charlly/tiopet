@@ -3,9 +3,10 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   Platform,
   Pressable,
   ScrollView,
@@ -33,6 +34,8 @@ import { theme } from "../src/theme/theme";
 import { Button } from "../src/ui/Button";
 import { Card } from "../src/ui/Card";
 import { Screen } from "../src/ui/Screen";
+
+const REGISTER_SUCCESS_RESET_DELAY_MS = 1000;
 
 function formatCreatedAt(iso?: string) {
   if (!iso) return "-";
@@ -152,10 +155,12 @@ function getMutationErrorMessage(reason: string) {
 function EventTypeTile({
   type,
   selected,
+  disabled,
   onToggle,
 }: {
   type: BookingCareEventType;
   selected: boolean;
+  disabled: boolean;
   onToggle: () => void;
 }) {
   const definition = getBookingCareEventDefinition(type);
@@ -169,6 +174,7 @@ function EventTypeTile({
       }}
     >
       <Pressable
+        disabled={disabled}
         onPress={onToggle}
         style={({ pressed }) => ({
           minHeight: 96,
@@ -183,8 +189,8 @@ function EventTypeTile({
           shadowOpacity: selected ? 0.18 : 0,
           shadowRadius: selected ? 16 : 0,
           shadowOffset: { width: 0, height: 8 },
-          opacity: pressed ? 0.96 : 1,
-          transform: [{ scale: pressed ? 0.988 : 1 }],
+          opacity: disabled ? 0.56 : pressed ? 0.96 : 1,
+          transform: [{ scale: pressed && !disabled ? 0.988 : 1 }],
         })}
       >
         <View
@@ -574,6 +580,13 @@ export default function BookingCareScreen() {
   const [eventDateValue, setEventDateValue] = useState("");
   const [eventTimeValue, setEventTimeValue] = useState("");
   const [mobilePickerMode, setMobilePickerMode] = useState<"date" | "time" | null>(null);
+  const [registerFeedbackState, setRegisterFeedbackState] = useState<"idle" | "success">(
+    "idle",
+  );
+  const registerButtonScale = useRef(new Animated.Value(1)).current;
+  const registerButtonOpacity = useRef(new Animated.Value(1)).current;
+  const registerFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const registerSubmissionLockRef = useRef(false);
 
   const goToHistory = () => router.replace("/(tabs)/history");
 
@@ -582,20 +595,37 @@ export default function BookingCareScreen() {
     return booking.timeline.find((event) => event.id === editingEventId) ?? null;
   }, [booking, editingEventId]);
 
-  const resetComposer = () => {
+  const resetComposer = useCallback(() => {
+    if (registerFeedbackTimeoutRef.current) {
+      clearTimeout(registerFeedbackTimeoutRef.current);
+      registerFeedbackTimeoutRef.current = null;
+    }
+
+    registerSubmissionLockRef.current = false;
+    setRegisterFeedbackState("idle");
+    registerButtonScale.setValue(1);
+    registerButtonOpacity.setValue(1);
     setEditingEventId(null);
     setSelectedType(null);
     setNote("");
     setEventDateValue("");
     setEventTimeValue("");
     setMobilePickerMode(null);
-  };
+  }, [registerButtonOpacity, registerButtonScale]);
 
   useEffect(() => {
     if (editingEventId && (!editingEvent || !canMutateTimelineEvent(editingEvent))) {
       resetComposer();
     }
-  }, [editingEventId, editingEvent]);
+  }, [editingEventId, editingEvent, resetComposer]);
+
+  useEffect(() => {
+    return () => {
+      if (registerFeedbackTimeoutRef.current) {
+        clearTimeout(registerFeedbackTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (!booking) {
     return (
@@ -635,14 +665,58 @@ export default function BookingCareScreen() {
   const isDatePickerActive = mobilePickerMode === "date";
   const isTimePickerActive = mobilePickerMode === "time";
   const isAnyMobilePickerActive = mobilePickerMode !== null;
+  const isRegisterFeedbackActive = !isEditMode && registerFeedbackState === "success";
   const registrationPreview = isEditMode
     ? draftEditedCreatedAtISO
       ? selectedTimestampSummary
       : formatCreatedAt(editingEvent.createdAtISO)
     : formatCreatedAt(new Date().toISOString());
+  const registerButtonTitle = isEditMode
+    ? "Guardar cambios"
+    : isRegisterFeedbackActive
+      ? "Registrado OK"
+      : "Registrar";
+
+  const triggerRegisterSuccessFeedback = () => {
+    setRegisterFeedbackState("success");
+    registerButtonScale.setValue(0.985);
+    registerButtonOpacity.setValue(0.94);
+
+    Animated.parallel([
+      Animated.sequence([
+        Animated.spring(registerButtonScale, {
+          toValue: 1.03,
+          useNativeDriver: true,
+          speed: 24,
+          bounciness: 6,
+        }),
+        Animated.timing(registerButtonScale, {
+          toValue: 1,
+          duration: 160,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.timing(registerButtonOpacity, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    if (registerFeedbackTimeoutRef.current) {
+      clearTimeout(registerFeedbackTimeoutRef.current);
+    }
+
+    registerFeedbackTimeoutRef.current = setTimeout(() => {
+      registerFeedbackTimeoutRef.current = null;
+      resetComposer();
+    }, REGISTER_SUCCESS_RESET_DELAY_MS);
+  };
 
   const startEditing = (event: CareTimelineEvent) => {
-    if (!canRegister || !canMutateTimelineEvent(event)) return;
+    if (!canRegister || !canMutateTimelineEvent(event) || registerSubmissionLockRef.current) {
+      return;
+    }
 
     setEditingEventId(event.id);
     setSelectedType(event.type as BookingCareEventType);
@@ -679,6 +753,7 @@ export default function BookingCareScreen() {
 
   const onSave = () => {
     if (!selectedType || !canRegister) return;
+    if (!isEditMode && registerSubmissionLockRef.current) return;
 
     const validation = validateBookingCareEventDraft({
       type: selectedType,
@@ -717,6 +792,8 @@ export default function BookingCareScreen() {
       return;
     }
 
+    registerSubmissionLockRef.current = true;
+
     const result = addTimelineEvent(booking.id, {
       type: selectedType,
       actor: "caregiver",
@@ -724,16 +801,18 @@ export default function BookingCareScreen() {
     });
 
     if (!result.ok) {
+      registerSubmissionLockRef.current = false;
       Alert.alert("No se pudo registrar", getMutationErrorMessage(result.reason));
       return;
     }
 
-    resetComposer();
-    Alert.alert("Evento registrado", "El cuidado se agrego al timeline local.");
+    triggerRegisterSuccessFeedback();
   };
 
   const confirmDeleteEvent = (event: CareTimelineEvent) => {
-    if (!canRegister || !canMutateTimelineEvent(event)) return;
+    if (!canRegister || !canMutateTimelineEvent(event) || registerSubmissionLockRef.current) {
+      return;
+    }
 
     Alert.alert(
       "Eliminar evento",
@@ -956,6 +1035,7 @@ export default function BookingCareScreen() {
                     key={definition.type}
                     type={definition.type}
                     selected={selectedType === definition.type}
+                    disabled={isRegisterFeedbackActive}
                     onToggle={() =>
                       setSelectedType((current) =>
                         current === definition.type ? null : definition.type,
@@ -1383,6 +1463,7 @@ export default function BookingCareScreen() {
                   <TextInput
                     value={note}
                     onChangeText={setNote}
+                    editable={!isRegisterFeedbackActive}
                     multiline
                     placeholder={selectedDefinition.notePlaceholder}
                     placeholderTextColor={theme.colors.muted}
@@ -1422,17 +1503,26 @@ export default function BookingCareScreen() {
                   </View>
 
                   <View style={{ marginTop: 16 }}>
-                    <Button
-                      title={isEditMode ? "Guardar cambios" : "Registrar evento"}
-                      variant="success"
-                      onPress={onSave}
-                    />
+                    <Animated.View
+                      style={{
+                        transform: [{ scale: registerButtonScale }],
+                        opacity: registerButtonOpacity,
+                      }}
+                    >
+                      <Button
+                        title={registerButtonTitle}
+                        variant="success"
+                        onPress={onSave}
+                        disabled={isRegisterFeedbackActive}
+                      />
+                    </Animated.View>
                   </View>
                   <View style={{ marginTop: 10 }}>
                     <Button
                       title={isEditMode ? "Cancelar edicion" : "Limpiar seleccion"}
                       variant="ghost"
                       onPress={resetComposer}
+                      disabled={isRegisterFeedbackActive}
                     />
                   </View>
                 </View>
