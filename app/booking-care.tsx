@@ -4,6 +4,7 @@ import DateTimePicker, {
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -24,12 +25,14 @@ import {
   getBookingCareEventDefinitions,
   getBookingCareGateMessage,
   getBookingQrPhaseLabel,
+  hasCompleteWalkSummary,
   getTimelineEventIcon,
   sortTimelineEventsDescending,
   getTimelineEventLabel,
   validateBookingCareEventDraft,
   type BookingCareEventType,
   type CareTimelineEvent,
+  type WalkRoutePoint,
 } from "../src/domain/bookings";
 import { useBookingsStore } from "../src/store/bookingsStore";
 import { theme } from "../src/theme/theme";
@@ -38,6 +41,9 @@ import { Card } from "../src/ui/Card";
 import { Screen } from "../src/ui/Screen";
 
 const REGISTER_SUCCESS_RESET_DELAY_MS = 1000;
+const WALK_WATCH_TIME_INTERVAL_MS = 15000;
+const WALK_WATCH_DISTANCE_INTERVAL_METERS = 10;
+const WALK_MIN_SEGMENT_DISTANCE_METERS = 5;
 
 function formatCreatedAt(iso?: string) {
   if (!iso) return "-";
@@ -266,6 +272,129 @@ function buildEditedCreatedAtISO(dateValue: string, timeValue: string) {
   return nextDate.toISOString();
 }
 
+type WalkComposerSession = {
+  status: "in_progress" | "finished";
+  walkStartedAtISO: string;
+  walkEndedAtISO?: string;
+  distanceMeters: number;
+  routePoints: WalkRoutePoint[];
+};
+
+function formatDurationClock(totalSeconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+
+  return [hours, minutes, seconds]
+    .map((value) => value.toString().padStart(2, "0"))
+    .join(":");
+}
+
+function formatDurationSummary(totalSeconds?: number) {
+  if (typeof totalSeconds !== "number" || !Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return "-";
+  }
+
+  const safeSeconds = Math.max(0, Math.round(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+
+  if (hours > 0) {
+    return `${hours} h ${minutes} min`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes} min`;
+  }
+
+  return `${safeSeconds} s`;
+}
+
+function formatDistanceSummary(distanceMeters?: number) {
+  if (
+    typeof distanceMeters !== "number" ||
+    !Number.isFinite(distanceMeters) ||
+    distanceMeters < 0
+  ) {
+    return "-";
+  }
+
+  if (distanceMeters >= 1000) {
+    const kilometers = distanceMeters / 1000;
+    const digits = kilometers >= 10 ? 1 : 2;
+    return `${kilometers.toFixed(digits)} km`;
+  }
+
+  return `${Math.round(distanceMeters)} m`;
+}
+
+function formatWalkRange(startedAtISO?: string, endedAtISO?: string) {
+  if (!startedAtISO || !endedAtISO) return "-";
+  return `${formatTimelineTime(startedAtISO)} - ${formatTimelineTime(endedAtISO)}`;
+}
+
+function toWalkRoutePoint(location: Location.LocationObject): WalkRoutePoint {
+  return {
+    latitude: location.coords.latitude,
+    longitude: location.coords.longitude,
+    recordedAtISO: new Date(location.timestamp).toISOString(),
+    accuracyMeters:
+      typeof location.coords.accuracy === "number" && Number.isFinite(location.coords.accuracy)
+        ? location.coords.accuracy
+        : undefined,
+  };
+}
+
+function calculateDistanceBetweenPointsMeters(
+  a: Pick<WalkRoutePoint, "latitude" | "longitude">,
+  b: Pick<WalkRoutePoint, "latitude" | "longitude">,
+) {
+  const earthRadiusMeters = 6371000;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const latitudeDelta = toRadians(b.latitude - a.latitude);
+  const longitudeDelta = toRadians(b.longitude - a.longitude);
+  const latitudeA = toRadians(a.latitude);
+  const latitudeB = toRadians(b.latitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) * Math.sin(latitudeDelta / 2) +
+    Math.cos(latitudeA) *
+      Math.cos(latitudeB) *
+      Math.sin(longitudeDelta / 2) *
+      Math.sin(longitudeDelta / 2);
+
+  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function appendWalkRoutePoint(
+  current: WalkComposerSession,
+  nextPoint: WalkRoutePoint,
+): WalkComposerSession {
+  const previousPoint = current.routePoints.at(-1);
+
+  if (
+    previousPoint &&
+    previousPoint.latitude === nextPoint.latitude &&
+    previousPoint.longitude === nextPoint.longitude
+  ) {
+    return current;
+  }
+
+  const segmentDistance = previousPoint
+    ? calculateDistanceBetweenPointsMeters(previousPoint, nextPoint)
+    : 0;
+
+  if (previousPoint && segmentDistance < WALK_MIN_SEGMENT_DISTANCE_METERS) {
+    return current;
+  }
+
+  return {
+    ...current,
+    distanceMeters: current.distanceMeters + segmentDistance,
+    routePoints: [...current.routePoints, nextPoint],
+  };
+}
+
 function getMutationErrorMessage(reason: string) {
   switch (reason) {
     case "booking_not_found":
@@ -280,6 +409,10 @@ function getMutationErrorMessage(reason: string) {
       return "Revisa la nota antes de guardar los cambios.";
     case "invalid_created_at":
       return "Revisa la fecha y la hora antes de guardar los cambios.";
+    case "walk_not_started":
+      return "Inicia el paseo antes de intentar guardarlo en el timeline local.";
+    case "walk_not_finished":
+      return "Finaliza el paseo y espera al menos un punto de ruta antes de guardarlo.";
     case "before_check_in":
       return "El evento no puede registrarse antes del check-in local de la reserva.";
     case "after_check_out":
@@ -459,6 +592,8 @@ function TimelinePreviewRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const hasWalkSummary = hasCompleteWalkSummary(event);
+
   return (
     <View
       style={{
@@ -546,11 +681,31 @@ function TimelinePreviewRow({
             </View>
           </View>
 
+          {hasWalkSummary ? (
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 8,
+                marginTop: 8,
+              }}
+            >
+              <SummaryMiniPill
+                icon="timer-outline"
+                value={formatDurationSummary(event.durationSeconds)}
+              />
+              <SummaryMiniPill
+                icon="map-marker-distance"
+                value={formatDistanceSummary(event.distanceMeters)}
+              />
+            </View>
+          ) : null}
+
           {event.note ? (
             <Text
               style={{
                 color: theme.colors.text,
-                marginTop: 6,
+                marginTop: hasWalkSummary ? 8 : 6,
                 fontSize: 13,
                 lineHeight: 18,
               }}
@@ -570,7 +725,9 @@ function TimelinePreviewRow({
               flexWrap: "wrap",
               gap: 8,
               marginTop:
-                event.note || (event.type === "photo_update" && event.photoUri)
+                hasWalkSummary ||
+                event.note ||
+                (event.type === "photo_update" && event.photoUri)
                   ? 10
                   : 6,
             }}
@@ -601,6 +758,23 @@ function TimelinePreviewRow({
                 {getTimelineActorLabel(event.actor)}
               </Text>
             </View>
+
+            {hasWalkSummary ? (
+              <View
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,183,77,0.18)",
+                  backgroundColor: "rgba(255,183,77,0.08)",
+                }}
+              >
+                <Text style={{ color: theme.colors.text, fontSize: 11, fontWeight: "800" }}>
+                  {formatWalkRange(event.walkStartedAtISO, event.walkEndedAtISO)}
+                </Text>
+              </View>
+            ) : null}
 
             {isEditing ? (
               <View
@@ -661,6 +835,35 @@ function TimelinePreviewRow({
           ) : null}
         </View>
       </View>
+    </View>
+  );
+}
+
+function SummaryMiniPill({
+  icon,
+  value,
+}: {
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  value: string;
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingHorizontal: 9,
+        paddingVertical: 6,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: "rgba(87,215,255,0.18)",
+        backgroundColor: "rgba(87,215,255,0.08)",
+      }}
+    >
+      <MaterialCommunityIcons name={icon} size={13} color={theme.colors.warn} />
+      <Text style={{ color: theme.colors.text, fontSize: 11, fontWeight: "800" }}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -815,6 +1018,11 @@ export default function BookingCareScreen() {
   const registerButtonOpacity = useRef(new Animated.Value(1)).current;
   const registerFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const registerSubmissionLockRef = useRef(false);
+  const walkWatcherRef = useRef<Location.LocationSubscription | null>(null);
+  const [walkSession, setWalkSession] = useState<WalkComposerSession | null>(null);
+  const [walkBusy, setWalkBusy] = useState(false);
+  const [walkFeedback, setWalkFeedback] = useState<string | null>(null);
+  const [walkElapsedNow, setWalkElapsedNow] = useState(Date.now());
 
   const goToHistory = () => router.replace("/(tabs)/history");
 
@@ -823,66 +1031,101 @@ export default function BookingCareScreen() {
     return booking.timeline.find((event) => event.id === editingEventId) ?? null;
   }, [booking, editingEventId]);
 
-  const resetComposer = useCallback(() => {
-    if (registerFeedbackTimeoutRef.current) {
-      clearTimeout(registerFeedbackTimeoutRef.current);
-      registerFeedbackTimeoutRef.current = null;
-    }
+  const stopWalkTracking = useCallback(() => {
+    walkWatcherRef.current?.remove();
+    walkWatcherRef.current = null;
+  }, []);
 
-    registerSubmissionLockRef.current = false;
-    setRegisterFeedbackState("idle");
-    registerButtonScale.setValue(1);
-    registerButtonOpacity.setValue(1);
-    setEditingEventId(null);
-    setSelectedType(null);
-    setNote("");
-    setSelectedPhotoUri(null);
-    setPhotoPickerBusy(false);
-    setEventDateValue("");
-    setEventTimeValue("");
-    setMobilePickerMode(null);
-  }, [registerButtonOpacity, registerButtonScale]);
+  const clearWalkSession = useCallback(() => {
+    stopWalkTracking();
+    setWalkSession(null);
+    setWalkBusy(false);
+    setWalkFeedback(null);
+  }, [stopWalkTracking]);
+
+  const resetComposer = useCallback(
+    (options?: { force?: boolean }) => {
+      if (!options?.force && walkSession) {
+        Alert.alert(
+          walkSession.status === "in_progress" ? "Cancelar paseo" : "Descartar paseo",
+          walkSession.status === "in_progress"
+            ? "Se perdera el paseo activo y sus puntos locales no guardados. Quieres continuar?"
+            : "Se perdera el resumen del paseo terminado que todavia no se guardo. Quieres continuar?",
+          [
+            {
+              text: "Seguir",
+              style: "cancel",
+            },
+            {
+              text: walkSession.status === "in_progress" ? "Cancelar paseo" : "Descartar",
+              style: "destructive",
+              onPress: () => resetComposer({ force: true }),
+            },
+          ],
+        );
+        return;
+      }
+
+      if (registerFeedbackTimeoutRef.current) {
+        clearTimeout(registerFeedbackTimeoutRef.current);
+        registerFeedbackTimeoutRef.current = null;
+      }
+
+      clearWalkSession();
+      registerSubmissionLockRef.current = false;
+      setRegisterFeedbackState("idle");
+      registerButtonScale.setValue(1);
+      registerButtonOpacity.setValue(1);
+      setEditingEventId(null);
+      setSelectedType(null);
+      setNote("");
+      setSelectedPhotoUri(null);
+      setPhotoPickerBusy(false);
+      setEventDateValue("");
+      setEventTimeValue("");
+      setMobilePickerMode(null);
+    },
+    [clearWalkSession, registerButtonOpacity, registerButtonScale, walkSession],
+  );
 
   useEffect(() => {
     if (editingEventId && (!editingEvent || !canMutateTimelineEvent(editingEvent))) {
-      resetComposer();
+      resetComposer({ force: true });
     }
   }, [editingEventId, editingEvent, resetComposer]);
+
+  useEffect(() => {
+    if (walkSession?.status !== "in_progress") {
+      return;
+    }
+
+    setWalkElapsedNow(Date.now());
+
+    const interval = setInterval(() => {
+      setWalkElapsedNow(Date.now());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [walkSession?.status]);
 
   useEffect(() => {
     return () => {
       if (registerFeedbackTimeoutRef.current) {
         clearTimeout(registerFeedbackTimeoutRef.current);
       }
+
+      stopWalkTracking();
     };
-  }, []);
+  }, [stopWalkTracking]);
 
-  if (!booking) {
-    return (
-      <Screen>
-        <View style={{ flex: 1, padding: theme.spacing(2), gap: 16 }}>
-          <Text style={{ color: theme.colors.text, fontSize: 28, fontWeight: "900" }}>
-            Registrar cuidado
-          </Text>
-          <Card>
-            <Text style={{ color: theme.colors.text, fontWeight: "900", fontSize: 16 }}>
-              Reserva no encontrada
-            </Text>
-            <Text style={{ color: theme.colors.muted, marginTop: 8, lineHeight: 18 }}>
-              No pudimos abrir el registro de cuidados para esta reserva.
-            </Text>
-          </Card>
-          <Button title="Volver al historial" onPress={goToHistory} />
-        </View>
-      </Screen>
-    );
-  }
-
-  const canRegister = canRegisterBookingCareEvents(booking.qr.phase);
+  const canRegister = booking
+    ? canRegisterBookingCareEvents(booking.qr.phase)
+    : false;
   const isEditMode = editingEvent !== null;
   const selectedDefinition = selectedType
     ? getBookingCareEventDefinition(selectedType)
     : null;
+  const isWalkSelected = selectedType === "walk";
   const isPhotoUpdateSelected = selectedType === "photo_update";
   const hasAttachedPhoto =
     typeof selectedPhotoUri === "string" && selectedPhotoUri.trim().length > 0;
@@ -898,7 +1141,57 @@ export default function BookingCareScreen() {
     selectedDefinition && isPhotoUpdateSelected
       ? "Pie de foto opcional"
       : selectedDefinition?.noteLabel;
-  const recentEvents = sortTimelineEventsDescending(booking.timeline).slice(0, 5);
+  const recentEvents = booking
+    ? sortTimelineEventsDescending(booking.timeline).slice(0, 5)
+    : [];
+  const isWalkSessionInProgress = walkSession?.status === "in_progress";
+  const isWalkSessionFinished = walkSession?.status === "finished";
+  const walkElapsedSeconds = walkSession
+    ? Math.max(
+        0,
+        Math.round(
+          ((isWalkSessionFinished
+            ? Date.parse(walkSession.walkEndedAtISO!)
+            : walkElapsedNow) - Date.parse(walkSession.walkStartedAtISO)) / 1000,
+        ),
+      )
+    : 0;
+  const canSaveCompletedWalk =
+    Boolean(
+      isWalkSelected &&
+        !isEditMode &&
+        isWalkSessionFinished &&
+        walkSession &&
+        walkSession.routePoints.length > 0,
+    );
+  const walkPrimaryButtonTitle = walkBusy
+    ? "Preparando paseo..."
+    : isWalkSessionInProgress
+      ? "Finalizar paseo"
+      : isWalkSessionFinished
+        ? "Guardar paseo"
+        : "Iniciar paseo";
+  const walkSecondaryButtonTitle = isWalkSessionInProgress
+    ? "Cancelar paseo"
+    : isWalkSessionFinished
+      ? "Descartar paseo"
+      : "Limpiar seleccion";
+  const isRegisterFeedbackActive = !isEditMode && registerFeedbackState === "success";
+  const isEventTypeDisabled = (type: BookingCareEventType) => {
+    if (isRegisterFeedbackActive || walkBusy || walkSession) {
+      return true;
+    }
+
+    if (!isEditMode) {
+      return false;
+    }
+
+    if (editingEvent?.type === "walk") {
+      return true;
+    }
+
+    return type === "walk";
+  };
   const draftEditedCreatedAtISO = isEditMode
     ? buildEditedCreatedAtISO(eventDateValue, eventTimeValue)
     : null;
@@ -910,7 +1203,6 @@ export default function BookingCareScreen() {
   const isDatePickerActive = mobilePickerMode === "date";
   const isTimePickerActive = mobilePickerMode === "time";
   const isAnyMobilePickerActive = mobilePickerMode !== null;
-  const isRegisterFeedbackActive = !isEditMode && registerFeedbackState === "success";
   const registrationPreview = isEditMode
     ? draftEditedCreatedAtISO
       ? selectedTimestampSummary
@@ -918,6 +1210,8 @@ export default function BookingCareScreen() {
     : formatCreatedAt(new Date().toISOString());
   const registerButtonTitle = isEditMode
     ? "Guardar cambios"
+    : isWalkSelected
+      ? walkPrimaryButtonTitle
     : isRegisterFeedbackActive
       ? "Registrado OK"
       : "Registrar";
@@ -954,7 +1248,7 @@ export default function BookingCareScreen() {
 
     registerFeedbackTimeoutRef.current = setTimeout(() => {
       registerFeedbackTimeoutRef.current = null;
-      resetComposer();
+      resetComposer({ force: true });
     }, REGISTER_SUCCESS_RESET_DELAY_MS);
   };
 
@@ -963,12 +1257,14 @@ export default function BookingCareScreen() {
       return;
     }
 
+    clearWalkSession();
     setEditingEventId(event.id);
     setSelectedType(event.type as BookingCareEventType);
     setNote(event.note ?? "");
     setSelectedPhotoUri(event.photoUri ?? null);
     setEventDateValue(formatDateInputValue(event.createdAtISO));
     setEventTimeValue(formatTimeInputValue(event.createdAtISO));
+    setWalkFeedback(null);
   };
 
   const pickPhotoAttachment = async () => {
@@ -1055,6 +1351,115 @@ export default function BookingCareScreen() {
     setEventTimeValue(formatTimeInputValue(selectedDate.toISOString()));
   };
 
+  const appendLiveWalkLocation = useCallback((location: Location.LocationObject) => {
+    const nextPoint = toWalkRoutePoint(location);
+
+    setWalkSession((current) => {
+      if (!current || current.status !== "in_progress") {
+        return current;
+      }
+
+      return appendWalkRoutePoint(current, nextPoint);
+    });
+  }, []);
+
+  const captureCurrentWalkLocation = useCallback(async () => {
+    try {
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      appendLiveWalkLocation(location);
+      setWalkFeedback("Ubicacion local capturada durante el paseo.");
+    } catch {
+      setWalkFeedback(
+        "Paseo activo. Seguiremos esperando puntos de ubicacion mientras el GPS responde.",
+      );
+    }
+  }, [appendLiveWalkLocation]);
+
+  const startWalkSession = async () => {
+    if (
+      !canRegister ||
+      isEditMode ||
+      selectedType !== "walk" ||
+      registerSubmissionLockRef.current ||
+      isRegisterFeedbackActive ||
+      walkBusy ||
+      walkSession
+    ) {
+      return;
+    }
+
+    try {
+      setWalkBusy(true);
+      setWalkFeedback("Solicitando permiso de ubicacion para este paseo local.");
+
+      const permission = await Location.requestForegroundPermissionsAsync();
+
+      if (permission.status !== "granted") {
+        Alert.alert(
+          "Permiso requerido",
+          "Necesitamos acceso a la ubicacion para registrar la ruta local del paseo.",
+        );
+        setWalkFeedback("Activa la ubicacion para poder iniciar y guardar el paseo.");
+        return;
+      }
+
+      const startedAtISO = new Date().toISOString();
+
+      try {
+        const subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: WALK_WATCH_TIME_INTERVAL_MS,
+            distanceInterval: WALK_WATCH_DISTANCE_INTERVAL_METERS,
+            mayShowUserSettingsDialog: true,
+          },
+          appendLiveWalkLocation,
+        );
+
+        walkWatcherRef.current = subscription;
+        setWalkSession({
+          status: "in_progress",
+          walkStartedAtISO: startedAtISO,
+          distanceMeters: 0,
+          routePoints: [],
+        });
+        setWalkFeedback("Paseo activo. Capturando puntos locales en este dispositivo.");
+        void captureCurrentWalkLocation();
+      } catch {
+        setWalkFeedback(null);
+        Alert.alert(
+          "No se pudo iniciar el paseo",
+          "No pudimos activar el seguimiento local de ubicacion. Intenta de nuevo.",
+        );
+      }
+    } finally {
+      setWalkBusy(false);
+    }
+  };
+
+  const finishWalkSession = () => {
+    if (!walkSession || walkSession.status !== "in_progress" || walkBusy) {
+      return;
+    }
+
+    stopWalkTracking();
+    const walkEndedAtISO = new Date().toISOString();
+
+    setWalkSession({
+      ...walkSession,
+      status: "finished",
+      walkEndedAtISO,
+    });
+    setWalkFeedback(
+      walkSession.routePoints.length > 0
+        ? "Paseo finalizado. Revisa el resumen y guardalo en el timeline."
+        : "Paseo finalizado, pero todavia no tenemos puntos de ruta para guardarlo.",
+    );
+  };
+
   const onSave = () => {
     if (!selectedType || !canRegister) return;
     if (!isEditMode && registerSubmissionLockRef.current) return;
@@ -1079,7 +1484,10 @@ export default function BookingCareScreen() {
     }
 
     if (isEditMode && editingEvent) {
-      const nextCreatedAtISO = buildEditedCreatedAtISO(eventDateValue, eventTimeValue);
+      const nextCreatedAtISO =
+        selectedType === "walk"
+          ? editingEvent.createdAtISO
+          : buildEditedCreatedAtISO(eventDateValue, eventTimeValue);
 
       if (!nextCreatedAtISO) {
         Alert.alert(
@@ -1106,6 +1514,32 @@ export default function BookingCareScreen() {
       return;
     }
 
+    if (selectedType === "walk") {
+      if (!walkSession) {
+        Alert.alert(
+          "Primero inicia el paseo",
+          "Usa Iniciar paseo para comenzar a capturar la ruta local antes de guardar.",
+        );
+        return;
+      }
+
+      if (walkSession.status !== "finished" || !walkSession.walkEndedAtISO) {
+        Alert.alert(
+          "Paseo en progreso",
+          "Finaliza el paseo para calcular la duracion y la distancia antes de guardarlo.",
+        );
+        return;
+      }
+
+      if (walkSession.routePoints.length === 0) {
+        Alert.alert(
+          "Sin ruta disponible",
+          "Todavia no tenemos puntos de ubicacion para guardar este paseo local.",
+        );
+        return;
+      }
+    }
+
     registerSubmissionLockRef.current = true;
 
     const result = addTimelineEvent(booking.id, {
@@ -1113,6 +1547,14 @@ export default function BookingCareScreen() {
       actor: "caregiver",
       note: validation.note,
       photoUri: selectedType === "photo_update" ? normalizedPhotoUri : undefined,
+      walkStartedAtISO:
+        selectedType === "walk" ? walkSession?.walkStartedAtISO : undefined,
+      walkEndedAtISO:
+        selectedType === "walk" ? walkSession?.walkEndedAtISO : undefined,
+      durationSeconds: selectedType === "walk" ? walkElapsedSeconds : undefined,
+      distanceMeters:
+        selectedType === "walk" ? Math.round(walkSession?.distanceMeters ?? 0) : undefined,
+      routePoints: selectedType === "walk" ? walkSession?.routePoints : undefined,
     });
 
     if (!result.ok) {
@@ -1158,6 +1600,27 @@ export default function BookingCareScreen() {
       ],
     );
   };
+
+  if (!booking) {
+    return (
+      <Screen>
+        <View style={{ flex: 1, padding: theme.spacing(2), gap: 16 }}>
+          <Text style={{ color: theme.colors.text, fontSize: 28, fontWeight: "900" }}>
+            Registrar cuidado
+          </Text>
+          <Card>
+            <Text style={{ color: theme.colors.text, fontWeight: "900", fontSize: 16 }}>
+              Reserva no encontrada
+            </Text>
+            <Text style={{ color: theme.colors.muted, marginTop: 8, lineHeight: 18 }}>
+              No pudimos abrir el registro de cuidados para esta reserva.
+            </Text>
+          </Card>
+          <Button title="Volver al historial" onPress={goToHistory} />
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
@@ -1350,7 +1813,7 @@ export default function BookingCareScreen() {
                     key={definition.type}
                     type={definition.type}
                     selected={selectedType === definition.type}
-                    disabled={isRegisterFeedbackActive}
+                    disabled={isEventTypeDisabled(definition.type)}
                     onToggle={() =>
                       setSelectedType((current) =>
                         current === definition.type ? null : definition.type,
@@ -1422,7 +1885,7 @@ export default function BookingCareScreen() {
                     </View>
 
                     <Pressable
-                      onPress={resetComposer}
+                      onPress={() => resetComposer()}
                       style={{
                         width: 30,
                         height: 30,
@@ -1442,7 +1905,7 @@ export default function BookingCareScreen() {
                     </Pressable>
                   </View>
 
-                  {isEditMode ? (
+                  {isEditMode && selectedType !== "walk" ? (
                     <View
                       style={{
                         marginTop: 10,
@@ -1731,6 +2194,45 @@ export default function BookingCareScreen() {
                     </View>
                   ) : null}
 
+                  {isEditMode && selectedType === "walk" && editingEvent ? (
+                    <View
+                      style={{
+                        marginTop: 10,
+                        borderRadius: theme.radius.lg,
+                        borderWidth: 1,
+                        borderColor: "rgba(87,215,255,0.18)",
+                        backgroundColor: "rgba(87,215,255,0.05)",
+                        padding: 12,
+                        gap: 10,
+                      }}
+                    >
+                      <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
+                        Resumen del paseo guardado
+                      </Text>
+                      <Text style={{ color: theme.colors.muted, lineHeight: 18 }}>
+                        En esta primera fase el paseo mantiene su inicio, fin y ruta local ya
+                        registrada. Aqui solo ajustamos la nota si hace falta.
+                      </Text>
+
+                      {hasCompleteWalkSummary(editingEvent) ? (
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                          <SummaryMiniPill
+                            icon="timer-outline"
+                            value={formatDurationSummary(editingEvent.durationSeconds)}
+                          />
+                          <SummaryMiniPill
+                            icon="map-marker-distance"
+                            value={formatDistanceSummary(editingEvent.distanceMeters)}
+                          />
+                          <SummaryMiniPill
+                            icon="map-marker-path"
+                            value={`${editingEvent.routePoints?.length ?? 0} puntos`}
+                          />
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
+
                   {selectedHelperText ? (
                     <View
                       style={{
@@ -1768,6 +2270,124 @@ export default function BookingCareScreen() {
 
                       <Text style={{ flex: 1, color: theme.colors.muted, lineHeight: 18 }}>
                         {selectedHelperText}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {isWalkSelected && !isEditMode ? (
+                    <View
+                      style={{
+                        marginTop: 12,
+                        borderRadius: theme.radius.lg,
+                        borderWidth: 1,
+                        borderColor: isWalkSessionInProgress
+                          ? "rgba(34,197,94,0.28)"
+                          : isWalkSessionFinished
+                            ? "rgba(87,215,255,0.28)"
+                            : "rgba(255,255,255,0.08)",
+                        backgroundColor: isWalkSessionInProgress
+                          ? "rgba(34,197,94,0.08)"
+                          : isWalkSessionFinished
+                            ? "rgba(87,215,255,0.06)"
+                            : "rgba(255,255,255,0.03)",
+                        padding: 14,
+                        gap: 12,
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 12,
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: theme.colors.text, fontWeight: "900", fontSize: 15 }}>
+                            {isWalkSessionInProgress
+                              ? "Paseo en progreso"
+                              : isWalkSessionFinished
+                                ? "Paseo listo para guardar"
+                                : "Paseo listo para iniciar"}
+                          </Text>
+                          <Text style={{ color: theme.colors.muted, marginTop: 5, lineHeight: 18 }}>
+                            {isWalkSessionInProgress
+                              ? "Estamos capturando puntos de ruta localmente mientras el paseo sigue activo."
+                              : isWalkSessionFinished
+                                ? "Ya calculamos duracion y distancia. Guarda el evento para que aparezca en el timeline."
+                                : "Cuando comience la salida, inicia el paseo para registrar tiempo, distancia y ruta local."}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={{
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            borderRadius: 999,
+                            borderWidth: 1,
+                            borderColor: isWalkSessionInProgress
+                              ? "rgba(34,197,94,0.28)"
+                              : isWalkSessionFinished
+                                ? "rgba(87,215,255,0.24)"
+                                : "rgba(255,255,255,0.08)",
+                            backgroundColor: isWalkSessionInProgress
+                              ? "rgba(34,197,94,0.14)"
+                              : isWalkSessionFinished
+                                ? "rgba(87,215,255,0.10)"
+                                : "rgba(255,255,255,0.04)",
+                          }}
+                        >
+                          <Text style={{ color: theme.colors.text, fontSize: 11, fontWeight: "900" }}>
+                            {isWalkSessionInProgress
+                              ? "Activo"
+                              : isWalkSessionFinished
+                                ? "Finalizado"
+                                : "Listo"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                        <SummaryMiniPill
+                          icon="timer-outline"
+                          value={formatDurationClock(walkElapsedSeconds)}
+                        />
+                        <SummaryMiniPill
+                          icon="map-marker-distance"
+                          value={formatDistanceSummary(walkSession?.distanceMeters ?? 0)}
+                        />
+                        <SummaryMiniPill
+                          icon="map-marker-path"
+                          value={`${walkSession?.routePoints.length ?? 0} puntos`}
+                        />
+                      </View>
+
+                      {isWalkSessionFinished ? (
+                        <View
+                          style={{
+                            gap: 8,
+                            padding: 12,
+                            borderRadius: theme.radius.lg,
+                            borderWidth: 1,
+                            borderColor: "rgba(255,255,255,0.08)",
+                            backgroundColor: "rgba(255,255,255,0.03)",
+                          }}
+                        >
+                          <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
+                            Resumen listo
+                          </Text>
+                          <Text style={{ color: theme.colors.muted, lineHeight: 18 }}>
+                            Rango: {formatWalkRange(walkSession?.walkStartedAtISO, walkSession?.walkEndedAtISO)}
+                          </Text>
+                          <Text style={{ color: theme.colors.muted, lineHeight: 18 }}>
+                            Distancia: {formatDistanceSummary(walkSession?.distanceMeters ?? 0)}
+                          </Text>
+                        </View>
+                      ) : null}
+
+                      <Text style={{ color: theme.colors.muted, fontSize: 12, lineHeight: 17 }}>
+                        {walkFeedback ??
+                          "El seguimiento es local, sin mapa ni sincronizacion en esta primera fase."}
                       </Text>
                     </View>
                   ) : null}
@@ -1930,26 +2550,28 @@ export default function BookingCareScreen() {
                     }}
                   />
 
-                  <View
-                    style={{
-                      marginTop: 10,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <MaterialCommunityIcons
-                      name={isEditMode ? "history" : "clock-outline"}
-                      size={16}
-                      color={theme.colors.warn}
-                    />
-                    <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
-                      {isEditMode ? "Se guardara con fecha: " : "Se registrara ahora: "}
-                      <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
-                        {registrationPreview}
+                  {!isWalkSelected || isEditMode ? (
+                    <View
+                      style={{
+                        marginTop: 10,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name={isEditMode ? "history" : "clock-outline"}
+                        size={16}
+                        color={theme.colors.warn}
+                      />
+                      <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
+                        {isEditMode ? "Se guardara con fecha: " : "Se registrara ahora: "}
+                        <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
+                          {registrationPreview}
+                        </Text>
                       </Text>
-                    </Text>
-                  </View>
+                    </View>
+                  ) : null}
 
                   <View style={{ marginTop: 16 }}>
                     <Animated.View
@@ -1961,17 +2583,38 @@ export default function BookingCareScreen() {
                       <Button
                         title={registerButtonTitle}
                         variant="success"
-                        onPress={onSave}
-                        disabled={isRegisterFeedbackActive}
+                        onPress={
+                          !isEditMode && isWalkSelected
+                            ? isWalkSessionInProgress
+                              ? finishWalkSession
+                              : isWalkSessionFinished
+                                ? onSave
+                                : startWalkSession
+                            : onSave
+                        }
+                        disabled={
+                          isRegisterFeedbackActive ||
+                          walkBusy ||
+                          (isWalkSelected &&
+                            !isEditMode &&
+                            isWalkSessionFinished &&
+                            !canSaveCompletedWalk)
+                        }
                       />
                     </Animated.View>
                   </View>
                   <View style={{ marginTop: 10 }}>
                     <Button
-                      title={isEditMode ? "Cancelar edicion" : "Limpiar seleccion"}
+                      title={
+                        isEditMode
+                          ? "Cancelar edicion"
+                          : isWalkSelected
+                            ? walkSecondaryButtonTitle
+                            : "Limpiar seleccion"
+                      }
                       variant="ghost"
-                      onPress={resetComposer}
-                      disabled={isRegisterFeedbackActive}
+                      onPress={() => resetComposer()}
+                      disabled={isRegisterFeedbackActive || walkBusy}
                     />
                   </View>
                 </View>

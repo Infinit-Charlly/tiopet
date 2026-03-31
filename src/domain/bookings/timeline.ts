@@ -25,6 +25,13 @@ const CARE_TIMELINE_EVENT_TYPES = [
 export type CareTimelineEventType = (typeof CARE_TIMELINE_EVENT_TYPES)[number];
 export type CareTimelineActor = "system" | "caregiver";
 
+export type WalkRoutePoint = {
+  latitude: number;
+  longitude: number;
+  recordedAtISO: string;
+  accuracyMeters?: number;
+};
+
 const IMMUTABLE_TIMELINE_EVENT_TYPES = new Set<CareTimelineEventType>([
   "booking_created",
   "booking_confirmed",
@@ -50,6 +57,11 @@ export type CareTimelineEvent = {
   actor?: CareTimelineActor;
   note?: string;
   photoUri?: string;
+  walkStartedAtISO?: string;
+  walkEndedAtISO?: string;
+  durationSeconds?: number;
+  distanceMeters?: number;
+  routePoints?: WalkRoutePoint[];
 };
 
 export type CareTimelineEventInput = Omit<
@@ -77,6 +89,95 @@ function normalizeCreatedAtISO(value: unknown, fallback: string) {
   return typeof value === "string" && value.length > 0 ? value : fallback;
 }
 
+function normalizeOptionalISO(value: unknown) {
+  return typeof value === "string" && value.length > 0 && !Number.isNaN(Date.parse(value))
+    ? value
+    : undefined;
+}
+
+function normalizeNonNegativeNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+function normalizeWalkRoutePoint(value: unknown): WalkRoutePoint | null {
+  if (!value || typeof value !== "object") return null;
+
+  const record = value as Record<string, unknown>;
+
+  if (
+    typeof record.latitude !== "number" ||
+    !Number.isFinite(record.latitude) ||
+    typeof record.longitude !== "number" ||
+    !Number.isFinite(record.longitude)
+  ) {
+    return null;
+  }
+
+  const recordedAtISO = normalizeOptionalISO(record.recordedAtISO);
+
+  if (!recordedAtISO) {
+    return null;
+  }
+
+  const accuracyMeters = normalizeNonNegativeNumber(record.accuracyMeters);
+
+  return {
+    latitude: record.latitude,
+    longitude: record.longitude,
+    recordedAtISO,
+    accuracyMeters,
+  };
+}
+
+function normalizeWalkRoutePoints(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+
+  const routePoints = value
+    .map((item) => normalizeWalkRoutePoint(item))
+    .filter((item): item is WalkRoutePoint => item !== null);
+
+  return routePoints.length > 0 ? routePoints : undefined;
+}
+
+export function hasCompleteWalkSummary(
+  event: Pick<
+    CareTimelineEvent,
+    | "type"
+    | "walkStartedAtISO"
+    | "walkEndedAtISO"
+    | "durationSeconds"
+    | "distanceMeters"
+    | "routePoints"
+  >,
+) {
+  if (event.type !== "walk") {
+    return false;
+  }
+
+  if (
+    !event.walkStartedAtISO ||
+    !event.walkEndedAtISO ||
+    typeof event.durationSeconds !== "number" ||
+    !Number.isFinite(event.durationSeconds) ||
+    event.durationSeconds < 0 ||
+    typeof event.distanceMeters !== "number" ||
+    !Number.isFinite(event.distanceMeters) ||
+    event.distanceMeters < 0 ||
+    !Array.isArray(event.routePoints) ||
+    event.routePoints.length === 0
+  ) {
+    return false;
+  }
+
+  return (
+    !Number.isNaN(Date.parse(event.walkStartedAtISO)) &&
+    !Number.isNaN(Date.parse(event.walkEndedAtISO)) &&
+    Date.parse(event.walkEndedAtISO) >= Date.parse(event.walkStartedAtISO)
+  );
+}
+
 function normalizeTimelineEvent(
   value: unknown,
   fallbackCreatedAtISO: string,
@@ -87,6 +188,20 @@ function normalizeTimelineEvent(
 
   if (!isTimelineEventType(record.type)) return null;
 
+  const walkStartedAtISO = normalizeOptionalISO(record.walkStartedAtISO);
+  const walkEndedAtISO = normalizeOptionalISO(record.walkEndedAtISO);
+  const durationSeconds = normalizeNonNegativeNumber(record.durationSeconds);
+  const distanceMeters = normalizeNonNegativeNumber(record.distanceMeters);
+  const routePoints = normalizeWalkRoutePoints(record.routePoints);
+  const hasWalkSummary = hasCompleteWalkSummary({
+    type: record.type,
+    walkStartedAtISO,
+    walkEndedAtISO,
+    durationSeconds,
+    distanceMeters,
+    routePoints,
+  });
+
   return {
     id:
       typeof record.id === "string" && record.id.length > 0
@@ -94,7 +209,7 @@ function normalizeTimelineEvent(
         : makeTimelineId(),
     type: record.type,
     createdAtISO: normalizeCreatedAtISO(
-      record.createdAtISO,
+      hasWalkSummary ? walkStartedAtISO : record.createdAtISO,
       fallbackCreatedAtISO,
     ),
     actor:
@@ -103,6 +218,11 @@ function normalizeTimelineEvent(
         : undefined,
     note: typeof record.note === "string" ? record.note : undefined,
     photoUri: typeof record.photoUri === "string" ? record.photoUri : undefined,
+    walkStartedAtISO: hasWalkSummary ? walkStartedAtISO : undefined,
+    walkEndedAtISO: hasWalkSummary ? walkEndedAtISO : undefined,
+    durationSeconds: hasWalkSummary ? durationSeconds : undefined,
+    distanceMeters: hasWalkSummary ? distanceMeters : undefined,
+    routePoints: hasWalkSummary ? routePoints : undefined,
   };
 }
 
@@ -188,16 +308,30 @@ export function validateCareEventCreatedAtISOWithinServiceWindow(input: {
 export function createTimelineEvent(
   input: CareTimelineEventInput,
 ): CareTimelineEvent {
+  const hasWalkSummary = hasCompleteWalkSummary({
+    type: input.type,
+    walkStartedAtISO: input.walkStartedAtISO,
+    walkEndedAtISO: input.walkEndedAtISO,
+    durationSeconds: input.durationSeconds,
+    distanceMeters: input.distanceMeters,
+    routePoints: input.routePoints,
+  });
+
   return {
     id: input.id && input.id.length > 0 ? input.id : makeTimelineId(),
     type: input.type,
     createdAtISO: normalizeCreatedAtISO(
-      input.createdAtISO,
+      hasWalkSummary ? input.walkStartedAtISO : input.createdAtISO,
       new Date().toISOString(),
     ),
     actor: input.actor,
     note: input.note,
     photoUri: input.photoUri,
+    walkStartedAtISO: hasWalkSummary ? input.walkStartedAtISO : undefined,
+    walkEndedAtISO: hasWalkSummary ? input.walkEndedAtISO : undefined,
+    durationSeconds: hasWalkSummary ? input.durationSeconds : undefined,
+    distanceMeters: hasWalkSummary ? input.distanceMeters : undefined,
+    routePoints: hasWalkSummary ? input.routePoints : undefined,
   };
 }
 

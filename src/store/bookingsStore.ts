@@ -12,6 +12,7 @@ import {
   createCheckOutEvent,
   createTimelineEvent,
   disableBookingQr,
+  hasCompleteWalkSummary,
   normalizeBookingQrState,
   normalizeTimelineEvents,
   sortTimelineEvents,
@@ -76,6 +77,8 @@ export type TimelineMutationResult =
         | "invalid_type"
         | "invalid_note"
         | "invalid_created_at"
+        | "walk_not_started"
+        | "walk_not_finished"
         | "before_check_in"
         | "after_check_out"
         | "in_future";
@@ -137,6 +140,57 @@ function isValidTimelineCreatedAtISO(value: unknown): value is string {
     value.length > 0 &&
     !Number.isNaN(Date.parse(value))
   );
+}
+
+function getWalkTimelineValidationReason(input: {
+  type: BookingCareEventType;
+  timeline: CareTimelineEvent[];
+  walkStartedAtISO?: string;
+  walkEndedAtISO?: string;
+  durationSeconds?: number;
+  distanceMeters?: number;
+  routePoints?: CareTimelineEvent["routePoints"];
+}) {
+  if (input.type !== "walk") {
+    return null;
+  }
+
+  if (!input.walkStartedAtISO) {
+    return "walk_not_started" as const;
+  }
+
+  const hasWalkSummary = hasCompleteWalkSummary({
+    type: input.type,
+    walkStartedAtISO: input.walkStartedAtISO,
+    walkEndedAtISO: input.walkEndedAtISO,
+    durationSeconds: input.durationSeconds,
+    distanceMeters: input.distanceMeters,
+    routePoints: input.routePoints,
+  });
+
+  if (!hasWalkSummary) {
+    return "walk_not_finished" as const;
+  }
+
+  const startWindowValidation = validateCareEventCreatedAtISOWithinServiceWindow({
+    timeline: input.timeline,
+    createdAtISO: input.walkStartedAtISO,
+  });
+
+  if (!startWindowValidation.ok) {
+    return startWindowValidation.reason;
+  }
+
+  const endWindowValidation = validateCareEventCreatedAtISOWithinServiceWindow({
+    timeline: input.timeline,
+    createdAtISO: input.walkEndedAtISO!,
+  });
+
+  if (!endWindowValidation.ok) {
+    return endWindowValidation.reason;
+  }
+
+  return null;
 }
 
 function fixDuplicateIds(list: Booking[]) {
@@ -352,6 +406,15 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
         }
 
         const nextCreatedAtISO = event.createdAtISO ?? new Date().toISOString();
+        const nextWalkValidationReason = getWalkTimelineValidationReason({
+          type: event.type,
+          timeline: booking.timeline,
+          walkStartedAtISO: event.walkStartedAtISO,
+          walkEndedAtISO: event.walkEndedAtISO,
+          durationSeconds: event.durationSeconds,
+          distanceMeters: event.distanceMeters,
+          routePoints: event.routePoints,
+        });
 
         if (!isValidTimelineCreatedAtISO(nextCreatedAtISO)) {
           result = {
@@ -374,6 +437,14 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
           return booking;
         }
 
+        if (nextWalkValidationReason) {
+          result = {
+            ok: false,
+            reason: nextWalkValidationReason,
+          };
+          return booking;
+        }
+
         didChange = true;
         result = { ok: true };
 
@@ -382,7 +453,8 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
           actor: event.actor ?? "caregiver",
           note: validation.note,
           photoUri: event.photoUri,
-          createdAtISO: nextCreatedAtISO,
+          createdAtISO:
+            event.type === "walk" ? event.walkStartedAtISO : nextCreatedAtISO,
         });
       }),
     }));
@@ -452,6 +524,25 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
         }
 
         const nextCreatedAtISO = patch.createdAtISO ?? currentEvent.createdAtISO;
+        const nextWalkStartedAtISO =
+          nextType === "walk" ? currentEvent.walkStartedAtISO : undefined;
+        const nextWalkEndedAtISO =
+          nextType === "walk" ? currentEvent.walkEndedAtISO : undefined;
+        const nextDurationSeconds =
+          nextType === "walk" ? currentEvent.durationSeconds : undefined;
+        const nextDistanceMeters =
+          nextType === "walk" ? currentEvent.distanceMeters : undefined;
+        const nextRoutePoints =
+          nextType === "walk" ? currentEvent.routePoints : undefined;
+        const nextWalkValidationReason = getWalkTimelineValidationReason({
+          type: nextType,
+          timeline: booking.timeline,
+          walkStartedAtISO: nextWalkStartedAtISO,
+          walkEndedAtISO: nextWalkEndedAtISO,
+          durationSeconds: nextDurationSeconds,
+          distanceMeters: nextDistanceMeters,
+          routePoints: nextRoutePoints,
+        });
 
         if (!isValidTimelineCreatedAtISO(nextCreatedAtISO)) {
           result = {
@@ -474,15 +565,29 @@ export const useBookingsStore = create<BookingsState>((set, get) => ({
           return booking;
         }
 
+        if (nextWalkValidationReason) {
+          result = {
+            ok: false,
+            reason: nextWalkValidationReason,
+          };
+          return booking;
+        }
+
         const updatedEvent: CareTimelineEvent = {
           ...currentEvent,
           type: nextType,
           note: validation.note,
-          createdAtISO: nextCreatedAtISO,
+          createdAtISO:
+            nextType === "walk" ? nextWalkStartedAtISO! : nextCreatedAtISO,
           photoUri:
             patch.photoUri === null
               ? undefined
               : patch.photoUri ?? currentEvent.photoUri,
+          walkStartedAtISO: nextWalkStartedAtISO,
+          walkEndedAtISO: nextWalkEndedAtISO,
+          durationSeconds: nextDurationSeconds,
+          distanceMeters: nextDistanceMeters,
+          routePoints: nextRoutePoints,
         };
 
         result = { ok: true };

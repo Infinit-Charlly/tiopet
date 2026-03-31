@@ -48,6 +48,12 @@
           "photosPermission": "TioPet necesita acceso a tus fotos para adjuntar imagenes locales al timeline de cuidado."
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "TioPet necesita tu ubicacion mientras el paseo esta activo para guardar la ruta local del cuidado."
+        }
+      ],
       "expo-web-browser"
     ],
     "experiments": {
