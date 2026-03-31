@@ -101,6 +101,39 @@ function formatCreatedAt(iso: string) {
   }
 }
 
+function formatTimelineTime(iso?: string) {
+  if (!iso) return "-";
+
+  try {
+    const date = new Date(iso);
+    return date.toLocaleTimeString("es-EC", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "-";
+  }
+}
+
+function formatTimelineDate(iso?: string) {
+  if (!iso) return "-";
+
+  try {
+    const date = new Date(iso);
+    return date.toLocaleDateString("es-EC", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+    });
+  } catch {
+    return "-";
+  }
+}
+
+function getTimelineActorLabel(actor?: Booking["timeline"][number]["actor"]) {
+  return actor === "caregiver" ? "Cuidador" : "Sistema";
+}
+
 function Line({
   icon,
   label,
@@ -174,18 +207,117 @@ function TimelineRow({ event }: { event: Booking["timeline"][number] }) {
         </View>
       </View>
 
-      <View style={{ flex: 1, paddingTop: 2 }}>
-        <Text style={{ color: theme.colors.text, fontWeight: "800" }}>
-          {getTimelineEventLabel(event.type)}
-        </Text>
-        <Text style={{ color: theme.colors.muted, fontSize: 12, marginTop: 2 }}>
-          {formatCreatedAt(event.createdAtISO)}
-        </Text>
+      <View
+        style={{
+          flex: 1,
+          paddingTop: 2,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          borderRadius: theme.radius.md,
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.06)",
+          backgroundColor: "rgba(255,255,255,0.03)",
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 10,
+          }}
+        >
+          <Text
+            style={{
+              color: theme.colors.text,
+              fontWeight: "900",
+              fontSize: 14,
+              lineHeight: 18,
+              flex: 1,
+            }}
+          >
+            {getTimelineEventLabel(event.type)}
+          </Text>
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              paddingHorizontal: 8,
+              paddingVertical: 5,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: "rgba(87,215,255,0.24)",
+              backgroundColor: "rgba(87,215,255,0.10)",
+            }}
+          >
+            <MaterialCommunityIcons
+              name="clock-time-four-outline"
+              size={12}
+              color={theme.colors.primary}
+            />
+            <Text
+              style={{
+                color: theme.colors.text,
+                fontSize: 11,
+                fontWeight: "900",
+              }}
+            >
+              {formatTimelineTime(event.createdAtISO)}
+            </Text>
+          </View>
+        </View>
+
         {event.note ? (
-          <Text style={{ color: theme.colors.muted, marginTop: 4 }}>
+          <Text
+            style={{
+              color: theme.colors.text,
+              marginTop: 6,
+              fontSize: 13,
+              lineHeight: 18,
+            }}
+          >
             {event.note}
           </Text>
         ) : null}
+
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
+            marginTop: event.note ? 8 : 6,
+          }}
+        >
+          <Text
+            style={{
+              color: theme.colors.muted,
+              fontSize: 11,
+              fontWeight: "700",
+              letterSpacing: 0.3,
+              textTransform: "uppercase",
+            }}
+          >
+            {formatTimelineDate(event.createdAtISO)}
+          </Text>
+
+          <View
+            style={{
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.08)",
+              backgroundColor: "rgba(255,255,255,0.04)",
+            }}
+          >
+            <Text style={{ color: theme.colors.muted, fontSize: 11, fontWeight: "800" }}>
+              {getTimelineActorLabel(event.actor)}
+            </Text>
+          </View>
+        </View>
       </View>
     </View>
   );

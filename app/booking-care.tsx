@@ -54,6 +54,39 @@ function formatCreatedAt(iso?: string) {
   }
 }
 
+function formatTimelineTime(iso?: string) {
+  if (!iso) return "-";
+
+  try {
+    const date = new Date(iso);
+    return date.toLocaleTimeString("es-EC", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "-";
+  }
+}
+
+function formatTimelineDate(iso?: string) {
+  if (!iso) return "-";
+
+  try {
+    const date = new Date(iso);
+    return date.toLocaleDateString("es-EC", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+    });
+  } catch {
+    return "-";
+  }
+}
+
+function getTimelineActorLabel(actor?: CareTimelineEvent["actor"]) {
+  return actor === "caregiver" ? "Cuidador" : "Sistema";
+}
+
 function padDatePart(value: number) {
   return value.toString().padStart(2, "0");
 }
@@ -360,14 +393,102 @@ function TimelinePreviewRow({
           <View
             style={{
               flexDirection: "row",
-              alignItems: "center",
+              alignItems: "flex-start",
               justifyContent: "space-between",
               gap: 10,
             }}
           >
-            <Text style={{ color: theme.colors.text, fontWeight: "800", flex: 1 }}>
+            <Text
+              style={{
+                color: theme.colors.text,
+                fontWeight: "900",
+                fontSize: 14,
+                lineHeight: 18,
+                flex: 1,
+              }}
+            >
               {getTimelineEventLabel(event.type)}
             </Text>
+
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                paddingHorizontal: 8,
+                paddingVertical: 5,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: "rgba(87,215,255,0.24)",
+                backgroundColor: "rgba(87,215,255,0.10)",
+              }}
+            >
+              <MaterialCommunityIcons
+                name="clock-time-four-outline"
+                size={12}
+                color={theme.colors.primary}
+              />
+              <Text
+                style={{
+                  color: theme.colors.text,
+                  fontSize: 11,
+                  fontWeight: "900",
+                }}
+              >
+                {formatTimelineTime(event.createdAtISO)}
+              </Text>
+            </View>
+          </View>
+
+          {event.note ? (
+            <Text
+              style={{
+                color: theme.colors.text,
+                marginTop: 6,
+                fontSize: 13,
+                lineHeight: 18,
+              }}
+            >
+              {event.note}
+            </Text>
+          ) : null}
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 8,
+              marginTop: event.note ? 8 : 6,
+            }}
+          >
+            <Text
+              style={{
+                color: theme.colors.muted,
+                fontSize: 11,
+                fontWeight: "700",
+                letterSpacing: 0.3,
+                textTransform: "uppercase",
+              }}
+            >
+              {formatTimelineDate(event.createdAtISO)}
+            </Text>
+
+            <View
+              style={{
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.08)",
+                backgroundColor: "rgba(255,255,255,0.04)",
+              }}
+            >
+              <Text style={{ color: theme.colors.muted, fontSize: 11, fontWeight: "800" }}>
+                {getTimelineActorLabel(event.actor)}
+              </Text>
+            </View>
+
             {isEditing ? (
               <View
                 style={{
@@ -385,14 +506,6 @@ function TimelinePreviewRow({
               </View>
             ) : null}
           </View>
-
-          <Text style={{ color: theme.colors.muted, fontSize: 12, marginTop: 2 }}>
-            {formatCreatedAt(event.createdAtISO)}
-          </Text>
-
-          {event.note ? (
-            <Text style={{ color: theme.colors.muted, marginTop: 4 }}>{event.note}</Text>
-          ) : null}
 
           {canManage ? (
             <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
