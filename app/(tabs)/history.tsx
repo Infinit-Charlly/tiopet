@@ -7,6 +7,7 @@ import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import {
   canRegisterBookingCareEvents,
   getBookingQrPhaseLabel,
+  hasCompleteWalkSummary,
   getTimelineEventIcon,
   getTimelineEventLabel,
   sortTimelineEventsDescending,
@@ -17,6 +18,7 @@ import { Button } from "../../src/ui/Button";
 import { Card } from "../../src/ui/Card";
 import { HoldButton } from "../../src/ui/HoldButton";
 import { Screen } from "../../src/ui/Screen";
+import { WalkRoutePreview } from "../../src/ui/WalkRoutePreview";
 
 type Filter = "todas" | "pendiente" | "confirmada" | "cancelada";
 
@@ -135,6 +137,49 @@ function getTimelineActorLabel(actor?: Booking["timeline"][number]["actor"]) {
   return actor === "caregiver" ? "Cuidador" : "Sistema";
 }
 
+function formatDurationSummary(totalSeconds?: number) {
+  if (typeof totalSeconds !== "number" || !Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return "-";
+  }
+
+  const safeSeconds = Math.max(0, Math.round(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+
+  if (hours > 0) {
+    return `${hours} h ${minutes} min`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes} min`;
+  }
+
+  return `${safeSeconds} s`;
+}
+
+function formatDistanceSummary(distanceMeters?: number) {
+  if (
+    typeof distanceMeters !== "number" ||
+    !Number.isFinite(distanceMeters) ||
+    distanceMeters < 0
+  ) {
+    return "-";
+  }
+
+  if (distanceMeters >= 1000) {
+    const kilometers = distanceMeters / 1000;
+    const digits = kilometers >= 10 ? 1 : 2;
+    return `${kilometers.toFixed(digits)} km`;
+  }
+
+  return `${Math.round(distanceMeters)} m`;
+}
+
+function formatWalkRange(startedAtISO?: string, endedAtISO?: string) {
+  if (!startedAtISO || !endedAtISO) return "-";
+  return `${formatTimelineTime(startedAtISO)} - ${formatTimelineTime(endedAtISO)}`;
+}
+
 function TimelinePhotoPreview({ uri }: { uri: string }) {
   return (
     <View
@@ -220,7 +265,38 @@ function Line({
   );
 }
 
+function SummaryMiniPill({
+  icon,
+  value,
+}: {
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  value: string;
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingHorizontal: 9,
+        paddingVertical: 6,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: "rgba(87,215,255,0.18)",
+        backgroundColor: "rgba(87,215,255,0.08)",
+      }}
+    >
+      <MaterialCommunityIcons name={icon} size={13} color={theme.colors.warn} />
+      <Text style={{ color: theme.colors.text, fontSize: 11, fontWeight: "800" }}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 function TimelineRow({ event }: { event: Booking["timeline"][number] }) {
+  const hasWalkSummary = hasCompleteWalkSummary(event);
+
   return (
     <View
       style={{
@@ -319,11 +395,35 @@ function TimelineRow({ event }: { event: Booking["timeline"][number] }) {
           </View>
         </View>
 
+        {hasWalkSummary ? (
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              gap: 8,
+              marginTop: 8,
+            }}
+          >
+            <SummaryMiniPill
+              icon="timer-outline"
+              value={formatDurationSummary(event.durationSeconds)}
+            />
+            <SummaryMiniPill
+              icon="map-marker-distance"
+              value={formatDistanceSummary(event.distanceMeters)}
+            />
+          </View>
+        ) : null}
+
+        {hasWalkSummary ? (
+          <WalkRoutePreview routePoints={event.routePoints} label="Ruta guardada" />
+        ) : null}
+
         {event.note ? (
           <Text
             style={{
               color: theme.colors.text,
-              marginTop: 6,
+              marginTop: hasWalkSummary ? 8 : 6,
               fontSize: 13,
               lineHeight: 18,
             }}
@@ -343,7 +443,9 @@ function TimelineRow({ event }: { event: Booking["timeline"][number] }) {
             flexWrap: "wrap",
             gap: 8,
             marginTop:
-              event.note || (event.type === "photo_update" && event.photoUri)
+              hasWalkSummary ||
+              event.note ||
+              (event.type === "photo_update" && event.photoUri)
                 ? 10
                 : 6,
           }}
@@ -374,6 +476,23 @@ function TimelineRow({ event }: { event: Booking["timeline"][number] }) {
               {getTimelineActorLabel(event.actor)}
             </Text>
           </View>
+
+          {hasWalkSummary ? (
+            <View
+              style={{
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: "rgba(255,183,77,0.18)",
+                backgroundColor: "rgba(255,183,77,0.08)",
+              }}
+            >
+              <Text style={{ color: theme.colors.text, fontSize: 11, fontWeight: "800" }}>
+                {formatWalkRange(event.walkStartedAtISO, event.walkEndedAtISO)}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
     </View>

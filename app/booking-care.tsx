@@ -39,6 +39,7 @@ import { theme } from "../src/theme/theme";
 import { Button } from "../src/ui/Button";
 import { Card } from "../src/ui/Card";
 import { Screen } from "../src/ui/Screen";
+import { WalkRoutePreview } from "../src/ui/WalkRoutePreview";
 
 const REGISTER_SUCCESS_RESET_DELAY_MS = 1000;
 const WALK_WATCH_TIME_INTERVAL_MS = 15000;
@@ -700,6 +701,8 @@ function TimelinePreviewRow({
               />
             </View>
           ) : null}
+
+          {hasWalkSummary ? <WalkRoutePreview routePoints={event.routePoints} /> : null}
 
           {event.note ? (
             <Text
