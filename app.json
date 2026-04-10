@@ -45,7 +45,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "TioPet necesita acceso a tus fotos para adjuntar imagenes locales al timeline de cuidado."
+          "photosPermission": "TioPet necesita acceso a tus fotos para adjuntar imagenes locales al timeline de cuidado.",
+          "cameraPermission": "TioPet necesita acceso a la camara para tomar fotos locales del timeline de cuidado."
         }
       ],
       [

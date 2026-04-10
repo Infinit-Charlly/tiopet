@@ -32,19 +32,29 @@ import {
   validateBookingCareEventDraft,
   type BookingCareEventType,
   type CareTimelineEvent,
+  type PlanId,
   type WalkRoutePoint,
 } from "../src/domain/bookings";
 import { useBookingsStore } from "../src/store/bookingsStore";
 import { theme } from "../src/theme/theme";
+import { BottomSheet } from "../src/ui/BottomSheet";
 import { Button } from "../src/ui/Button";
 import { Card } from "../src/ui/Card";
 import { Screen } from "../src/ui/Screen";
 import { WalkRoutePreview } from "../src/ui/WalkRoutePreview";
 
 const REGISTER_SUCCESS_RESET_DELAY_MS = 1000;
+const RECENT_TIMELINE_PREVIEW_COUNT = 5;
 const WALK_WATCH_TIME_INTERVAL_MS = 15000;
 const WALK_WATCH_DISTANCE_INTERVAL_METERS = 10;
 const WALK_MIN_SEGMENT_DISTANCE_METERS = 5;
+const PHOTO_PICKER_OPTIONS = {
+  mediaTypes: ["images"] as const,
+  allowsEditing: true,
+  aspect: [4, 3] as [number, number],
+  quality: 0.7,
+  selectionLimit: 1,
+};
 
 function formatCreatedAt(iso?: string) {
   if (!iso) return "-";
@@ -90,6 +100,10 @@ function formatTimelineDate(iso?: string) {
   } catch {
     return "-";
   }
+}
+
+function planSupportsPostWalkPhoto(planId?: PlanId) {
+  return planId === "consientan" || planId === "principe";
 }
 
 function getTimelineActorLabel(actor?: CareTimelineEvent["actor"]) {
@@ -1010,6 +1024,8 @@ export default function BookingCareScreen() {
   const [note, setNote] = useState("");
   const [selectedPhotoUri, setSelectedPhotoUri] = useState<string | null>(null);
   const [photoPickerBusy, setPhotoPickerBusy] = useState(false);
+  const [showPostWalkPhotoPrompt, setShowPostWalkPhotoPrompt] = useState(false);
+  const [isRecentTimelineExpanded, setIsRecentTimelineExpanded] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventDateValue, setEventDateValue] = useState("");
   const [eventTimeValue, setEventTimeValue] = useState("");
@@ -1083,6 +1099,7 @@ export default function BookingCareScreen() {
       setSelectedType(null);
       setNote("");
       setSelectedPhotoUri(null);
+      setShowPostWalkPhotoPrompt(false);
       setPhotoPickerBusy(false);
       setEventDateValue("");
       setEventTimeValue("");
@@ -1096,6 +1113,10 @@ export default function BookingCareScreen() {
       resetComposer({ force: true });
     }
   }, [editingEventId, editingEvent, resetComposer]);
+
+  useEffect(() => {
+    setIsRecentTimelineExpanded(false);
+  }, [booking?.id]);
 
   useEffect(() => {
     if (walkSession?.status !== "in_progress") {
@@ -1124,6 +1145,9 @@ export default function BookingCareScreen() {
   const canRegister = booking
     ? canRegisterBookingCareEvents(booking.qr.phase)
     : false;
+  const bookingPlanSupportsPostWalkPhoto = booking
+    ? planSupportsPostWalkPhoto(booking.planId)
+    : false;
   const isEditMode = editingEvent !== null;
   const selectedDefinition = selectedType
     ? getBookingCareEventDefinition(selectedType)
@@ -1144,9 +1168,17 @@ export default function BookingCareScreen() {
     selectedDefinition && isPhotoUpdateSelected
       ? "Pie de foto opcional"
       : selectedDefinition?.noteLabel;
-  const recentEvents = booking
-    ? sortTimelineEventsDescending(booking.timeline).slice(0, 5)
+  const recentTimelineEvents = booking
+    ? sortTimelineEventsDescending(booking.timeline)
     : [];
+  const recentTimelinePreview = recentTimelineEvents.slice(0, RECENT_TIMELINE_PREVIEW_COUNT);
+  const hiddenRecentEventsCount = Math.max(
+    0,
+    recentTimelineEvents.length - recentTimelinePreview.length,
+  );
+  const recentEvents = isRecentTimelineExpanded
+    ? recentTimelineEvents
+    : recentTimelinePreview;
   const isWalkSessionInProgress = walkSession?.status === "in_progress";
   const isWalkSessionFinished = walkSession?.status === "finished";
   const walkElapsedSeconds = walkSession
@@ -1219,7 +1251,9 @@ export default function BookingCareScreen() {
       ? "Registrado OK"
       : "Registrar";
 
-  const triggerRegisterSuccessFeedback = () => {
+  const triggerRegisterSuccessFeedback = (options?: {
+    showPostWalkPhotoPrompt?: boolean;
+  }) => {
     setRegisterFeedbackState("success");
     registerButtonScale.setValue(0.985);
     registerButtonOpacity.setValue(0.94);
@@ -1252,6 +1286,10 @@ export default function BookingCareScreen() {
     registerFeedbackTimeoutRef.current = setTimeout(() => {
       registerFeedbackTimeoutRef.current = null;
       resetComposer({ force: true });
+
+      if (options?.showPostWalkPhotoPrompt) {
+        setShowPostWalkPhotoPrompt(true);
+      }
     }, REGISTER_SUCCESS_RESET_DELAY_MS);
   };
 
@@ -1262,6 +1300,7 @@ export default function BookingCareScreen() {
 
     clearWalkSession();
     setEditingEventId(event.id);
+    setShowPostWalkPhotoPrompt(false);
     setSelectedType(event.type as BookingCareEventType);
     setNote(event.note ?? "");
     setSelectedPhotoUri(event.photoUri ?? null);
@@ -1270,7 +1309,25 @@ export default function BookingCareScreen() {
     setWalkFeedback(null);
   };
 
-  const pickPhotoAttachment = async () => {
+  const applyPickedPhotoResult = (result: ImagePicker.ImagePickerResult) => {
+    if (result.canceled) {
+      return;
+    }
+
+    const nextAsset = result.assets[0];
+
+    if (!nextAsset?.uri) {
+      Alert.alert(
+        "No se pudo adjuntar",
+        "La imagen seleccionada no tiene una referencia local valida.",
+      );
+      return;
+    }
+
+    setSelectedPhotoUri(nextAsset.uri);
+  };
+
+  const pickPhotoAttachmentFromLibrary = async () => {
     if (
       !canRegister ||
       registerSubmissionLockRef.current ||
@@ -1295,29 +1352,8 @@ export default function BookingCareScreen() {
         }
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.7,
-        selectionLimit: 1,
-      });
-
-      if (result.canceled) {
-        return;
-      }
-
-      const nextAsset = result.assets[0];
-
-      if (!nextAsset?.uri) {
-        Alert.alert(
-          "No se pudo adjuntar",
-          "La imagen seleccionada no tiene una referencia local valida.",
-        );
-        return;
-      }
-
-      setSelectedPhotoUri(nextAsset.uri);
+      const result = await ImagePicker.launchImageLibraryAsync(PHOTO_PICKER_OPTIONS);
+      applyPickedPhotoResult(result);
     } catch {
       Alert.alert(
         "No se pudo abrir la galeria",
@@ -1326,6 +1362,102 @@ export default function BookingCareScreen() {
     } finally {
       setPhotoPickerBusy(false);
     }
+  };
+
+  const capturePhotoAttachment = async () => {
+    if (
+      !canRegister ||
+      registerSubmissionLockRef.current ||
+      isRegisterFeedbackActive ||
+      photoPickerBusy
+    ) {
+      return;
+    }
+
+    try {
+      setPhotoPickerBusy(true);
+
+      if (Platform.OS !== "web") {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+
+        if (!permission.granted) {
+          Alert.alert(
+            "Permiso requerido",
+            "Necesitamos acceso a la camara para tomar una foto y adjuntarla al timeline.",
+          );
+          return;
+        }
+      }
+
+      const result = await ImagePicker.launchCameraAsync(PHOTO_PICKER_OPTIONS);
+      applyPickedPhotoResult(result);
+    } catch {
+      Alert.alert(
+        "No se pudo abrir la camara",
+        "Intenta de nuevo para tomar una foto local del evento.",
+      );
+    } finally {
+      setPhotoPickerBusy(false);
+    }
+  };
+
+  const pickPhotoAttachment = () => {
+    if (
+      !canRegister ||
+      registerSubmissionLockRef.current ||
+      isRegisterFeedbackActive ||
+      photoPickerBusy
+    ) {
+      return;
+    }
+
+    const actionLabel = selectedPhotoUri ? "Reemplazar foto" : "Adjuntar foto";
+    const message =
+      Platform.OS === "web"
+        ? "Selecciona una imagen local para este update."
+        : "Elige como quieres agregar la imagen al update.";
+
+    const actions =
+      Platform.OS === "web"
+        ? [
+            {
+              text: "Galeria",
+              onPress: () => {
+                void pickPhotoAttachmentFromLibrary();
+              },
+            },
+            { text: "Cancelar", style: "cancel" as const },
+          ]
+        : [
+            {
+              text: "Tomar foto",
+              onPress: () => {
+                void capturePhotoAttachment();
+              },
+            },
+            {
+              text: "Galeria",
+              onPress: () => {
+                void pickPhotoAttachmentFromLibrary();
+              },
+            },
+            { text: "Cancelar", style: "cancel" as const },
+          ];
+
+    Alert.alert(actionLabel, message, actions);
+  };
+
+  const startPostWalkPhotoFlow = () => {
+    setShowPostWalkPhotoPrompt(false);
+    setSelectedType("photo_update");
+    setEditingEventId(null);
+    setNote("");
+    setSelectedPhotoUri(null);
+    setPhotoPickerBusy(false);
+    setEventDateValue("");
+    setEventTimeValue("");
+    setMobilePickerMode(null);
+    pickPhotoAttachment();
   };
 
   const onNativeDateChange = (
@@ -1566,7 +1698,12 @@ export default function BookingCareScreen() {
       return;
     }
 
-    triggerRegisterSuccessFeedback();
+    triggerRegisterSuccessFeedback({
+      showPostWalkPhotoPrompt:
+        selectedType === "walk" &&
+        !isEditMode &&
+        bookingPlanSupportsPostWalkPhoto,
+    });
   };
 
   const confirmDeleteEvent = (event: CareTimelineEvent) => {
@@ -1817,11 +1954,12 @@ export default function BookingCareScreen() {
                     type={definition.type}
                     selected={selectedType === definition.type}
                     disabled={isEventTypeDisabled(definition.type)}
-                    onToggle={() =>
+                    onToggle={() => {
+                      setShowPostWalkPhotoPrompt(false);
                       setSelectedType((current) =>
                         current === definition.type ? null : definition.type,
-                      )
-                    }
+                      );
+                    }}
                   />
                 ))}
               </View>
@@ -2651,7 +2789,7 @@ export default function BookingCareScreen() {
                 Timeline reciente
               </Text>
               <Text style={{ color: theme.colors.muted, fontSize: 12 }}>
-                {recentEvents.length} evento(s)
+                {recentTimelineEvents.length} evento(s)
               </Text>
             </View>
 
@@ -2672,6 +2810,42 @@ export default function BookingCareScreen() {
               })}
             </View>
 
+            {hiddenRecentEventsCount > 0 ? (
+              <Pressable
+                onPress={() => setIsRecentTimelineExpanded((current) => !current)}
+                style={{
+                  marginTop: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  alignSelf: "flex-start",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: "rgba(87,215,255,0.24)",
+                  backgroundColor: "rgba(87,215,255,0.08)",
+                }}
+              >
+                <MaterialCommunityIcons
+                  name={isRecentTimelineExpanded ? "chevron-up" : "chevron-down"}
+                  size={16}
+                  color={theme.colors.warn}
+                />
+                <Text
+                  style={{
+                    color: theme.colors.text,
+                    fontSize: 12,
+                    fontWeight: "800",
+                  }}
+                >
+                  {isRecentTimelineExpanded
+                    ? "Ver menos"
+                    : `Ver todos (+${hiddenRecentEventsCount})`}
+                </Text>
+              </Pressable>
+            ) : null}
+
             <Text style={{ color: theme.colors.muted, marginTop: 12, fontSize: 12 }}>
               Ultima actualizacion: {formatCreatedAt(booking.timeline.at(-1)?.createdAtISO)}
             </Text>
@@ -2684,7 +2858,116 @@ export default function BookingCareScreen() {
           <View style={{ height: 22 }} />
         </View>
       </ScrollView>
+      <BottomSheet
+        visible={
+          showPostWalkPhotoPrompt &&
+          bookingPlanSupportsPostWalkPhoto &&
+          !selectedDefinition &&
+          !isEditMode
+        }
+        onClose={() => setShowPostWalkPhotoPrompt(false)}
+      >
+        <View
+          style={{
+            overflow: "hidden",
+            borderRadius: theme.radius.xl,
+            borderWidth: 1,
+            borderColor: "rgba(87,215,255,0.18)",
+            backgroundColor: "rgba(12,18,32,0.98)",
+            padding: 18,
+            gap: 16,
+          }}
+        >
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              width: 140,
+              height: 140,
+              borderRadius: 70,
+              right: -28,
+              top: -34,
+              backgroundColor: "rgba(87,215,255,0.09)",
+            }}
+          />
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              width: 110,
+              height: 110,
+              borderRadius: 55,
+              left: -18,
+              bottom: -42,
+              backgroundColor: "rgba(255,184,77,0.08)",
+            }}
+          />
 
+          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+            <View
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 23,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1,
+                borderColor: "rgba(87,215,255,0.30)",
+                backgroundColor: "rgba(87,215,255,0.13)",
+              }}
+            >
+              <MaterialCommunityIcons
+                name="image-plus"
+                size={20}
+                color={theme.colors.warn}
+              />
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.colors.text, fontWeight: "900", fontSize: 18 }}>
+                Paseo completado
+              </Text>
+              <Text
+                style={{
+                  color: theme.colors.muted,
+                  marginTop: 8,
+                  lineHeight: 20,
+                }}
+              >
+                Registra una foto del momento o de algun instante del paseo para dejar mejor
+                contexto en el timeline local.
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={{
+              borderRadius: theme.radius.lg,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.08)",
+              backgroundColor: "rgba(255,255,255,0.03)",
+              padding: 12,
+            }}
+          >
+            <Text style={{ color: theme.colors.text, fontWeight: "800", fontSize: 13 }}>
+              Siguiente paso opcional
+            </Text>
+            <Text style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}>
+              Si la tomas ahora, seguimos usando el mismo flujo local de `photo_update` sin salir
+              de esta pantalla.
+            </Text>
+          </View>
+
+          <View style={{ gap: 10 }}>
+            <Button title="Tomar foto" variant="secondary" onPress={startPostWalkPhotoFlow} />
+            <Button
+              title="Omitir"
+              variant="ghost"
+              onPress={() => setShowPostWalkPhotoPrompt(false)}
+            />
+          </View>
+        </View>
+      </BottomSheet>
     </Screen>
   );
 }
