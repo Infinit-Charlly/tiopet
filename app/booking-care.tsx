@@ -35,7 +35,13 @@ import {
   type PlanId,
   type WalkRoutePoint,
 } from "../src/domain/bookings";
+import {
+  createPhotoAvailableNotificationIntent,
+  createWalkFinishedNotificationIntent,
+  createWalkStartedNotificationIntent,
+} from "../src/domain/notifications";
 import { useBookingsStore } from "../src/store/bookingsStore";
+import { useNotificationsStore } from "../src/store/notificationsStore";
 import { theme } from "../src/theme/theme";
 import { BottomSheet } from "../src/ui/BottomSheet";
 import { Button } from "../src/ui/Button";
@@ -48,8 +54,8 @@ const RECENT_TIMELINE_PREVIEW_COUNT = 5;
 const WALK_WATCH_TIME_INTERVAL_MS = 15000;
 const WALK_WATCH_DISTANCE_INTERVAL_METERS = 10;
 const WALK_MIN_SEGMENT_DISTANCE_METERS = 5;
-const PHOTO_PICKER_OPTIONS = {
-  mediaTypes: ["images"] as const,
+const PHOTO_PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
+  mediaTypes: ["images"],
   allowsEditing: true,
   aspect: [4, 3] as [number, number],
   quality: 0.7,
@@ -1015,6 +1021,7 @@ export default function BookingCareScreen() {
   const addTimelineEvent = useBookingsStore((state) => state.addTimelineEvent);
   const updateTimelineEvent = useBookingsStore((state) => state.updateTimelineEvent);
   const deleteTimelineEvent = useBookingsStore((state) => state.deleteTimelineEvent);
+  const enqueueNotificationIntent = useNotificationsStore((state) => state.enqueueIntent);
 
   const booking = useMemo(
     () => bookings.find((item) => item.id === bookingId),
@@ -1023,6 +1030,9 @@ export default function BookingCareScreen() {
   const [selectedType, setSelectedType] = useState<BookingCareEventType | null>(null);
   const [note, setNote] = useState("");
   const [selectedPhotoUri, setSelectedPhotoUri] = useState<string | null>(null);
+  const [photoNotificationSource, setPhotoNotificationSource] = useState<
+    "post_walk" | "premium_event" | null
+  >(null);
   const [photoPickerBusy, setPhotoPickerBusy] = useState(false);
   const [showPostWalkPhotoPrompt, setShowPostWalkPhotoPrompt] = useState(false);
   const [isRecentTimelineExpanded, setIsRecentTimelineExpanded] = useState(false);
@@ -1099,6 +1109,7 @@ export default function BookingCareScreen() {
       setSelectedType(null);
       setNote("");
       setSelectedPhotoUri(null);
+      setPhotoNotificationSource(null);
       setShowPostWalkPhotoPrompt(false);
       setPhotoPickerBusy(false);
       setEventDateValue("");
@@ -1300,6 +1311,7 @@ export default function BookingCareScreen() {
 
     clearWalkSession();
     setEditingEventId(event.id);
+    setPhotoNotificationSource(null);
     setShowPostWalkPhotoPrompt(false);
     setSelectedType(event.type as BookingCareEventType);
     setNote(event.note ?? "");
@@ -1453,6 +1465,7 @@ export default function BookingCareScreen() {
     setEditingEventId(null);
     setNote("");
     setSelectedPhotoUri(null);
+    setPhotoNotificationSource("post_walk");
     setPhotoPickerBusy(false);
     setEventDateValue("");
     setEventTimeValue("");
@@ -1515,6 +1528,7 @@ export default function BookingCareScreen() {
 
   const startWalkSession = async () => {
     if (
+      !booking ||
       !canRegister ||
       isEditMode ||
       selectedType !== "walk" ||
@@ -1562,6 +1576,14 @@ export default function BookingCareScreen() {
           routePoints: [],
         });
         setWalkFeedback("Paseo activo. Capturando puntos locales en este dispositivo.");
+        enqueueNotificationIntent(
+          createWalkStartedNotificationIntent({
+            bookingId: booking.id,
+            petName: booking.petName,
+            planId: booking.planId,
+            createdAtISO: startedAtISO,
+          }),
+        );
         void captureCurrentWalkLocation();
       } catch {
         setWalkFeedback(null);
@@ -1596,7 +1618,7 @@ export default function BookingCareScreen() {
   };
 
   const onSave = () => {
-    if (!selectedType || !canRegister) return;
+    if (!booking || !selectedType || !canRegister) return;
     if (!isEditMode && registerSubmissionLockRef.current) return;
 
     const validation = validateBookingCareEventDraft({
@@ -1698,6 +1720,33 @@ export default function BookingCareScreen() {
       return;
     }
 
+    if (selectedType === "walk") {
+      enqueueNotificationIntent(
+        createWalkFinishedNotificationIntent({
+          bookingId: booking.id,
+          petName: booking.petName,
+          planId: booking.planId,
+          createdAtISO: new Date().toISOString(),
+        }),
+      );
+    }
+
+    if (
+      selectedType === "photo_update" &&
+      normalizedPhotoUri &&
+      (booking.planId === "consientan" || booking.planId === "principe")
+    ) {
+      enqueueNotificationIntent(
+        createPhotoAvailableNotificationIntent({
+          bookingId: booking.id,
+          petName: booking.petName,
+          planId: booking.planId,
+          createdAtISO: new Date().toISOString(),
+          source: photoNotificationSource ?? "premium_event",
+        }),
+      );
+    }
+
     triggerRegisterSuccessFeedback({
       showPostWalkPhotoPrompt:
         selectedType === "walk" &&
@@ -1707,7 +1756,12 @@ export default function BookingCareScreen() {
   };
 
   const confirmDeleteEvent = (event: CareTimelineEvent) => {
-    if (!canRegister || !canMutateTimelineEvent(event) || registerSubmissionLockRef.current) {
+    if (
+      !booking ||
+      !canRegister ||
+      !canMutateTimelineEvent(event) ||
+      registerSubmissionLockRef.current
+    ) {
       return;
     }
 
@@ -1956,6 +2010,7 @@ export default function BookingCareScreen() {
                     disabled={isEventTypeDisabled(definition.type)}
                     onToggle={() => {
                       setShowPostWalkPhotoPrompt(false);
+                      setPhotoNotificationSource(null);
                       setSelectedType((current) =>
                         current === definition.type ? null : definition.type,
                       );
