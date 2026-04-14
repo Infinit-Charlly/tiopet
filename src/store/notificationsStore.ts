@@ -10,6 +10,11 @@ type NotificationsState = {
   intents: NotificationIntent[];
   hydrated: boolean;
   enqueueIntent: (intent: NotificationIntent) => void;
+  markIntentLocallyDelivered: (
+    intentId: string,
+    localNotificationId: string,
+    deliveredAtISO?: string,
+  ) => void;
   hydrate: () => Promise<void>;
   persist: () => Promise<void>;
   clearAll: () => Promise<void>;
@@ -46,6 +51,38 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     }));
 
     void get().persist();
+  },
+
+  markIntentLocallyDelivered: (intentId, localNotificationId, deliveredAtISO) => {
+    const safeNotificationId = localNotificationId.trim();
+
+    if (safeNotificationId.length === 0) {
+      return;
+    }
+
+    let didChange = false;
+
+    set((state) => ({
+      intents: capNotificationIntents(
+        state.intents.map((intent) => {
+          if (intent.id !== intentId || intent.localDeliveredAtISO) {
+            return intent;
+          }
+
+          didChange = true;
+
+          return {
+            ...intent,
+            localDeliveredAtISO: deliveredAtISO ?? new Date().toISOString(),
+            localNotificationId: safeNotificationId,
+          };
+        }),
+      ),
+    }));
+
+    if (didChange) {
+      void get().persist();
+    }
   },
 
   persist: async () => {

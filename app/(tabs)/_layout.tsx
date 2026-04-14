@@ -2,20 +2,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { useEffect } from "react";
 import { useBookingsStore } from "../../src/store/bookingsStore";
-import { useNotificationsStore } from "../../src/store/notificationsStore";
 import { usePetsStore } from "../../src/store/petsStore";
 import { theme } from "../../src/theme/theme";
 
 export default function RootLayout() {
   const hydrateBookings = useBookingsStore((s) => s.hydrate);
-  const hydrateNotifications = useNotificationsStore((s) => s.hydrate);
   const hydratePets = usePetsStore((s) => s.hydrate);
 
   useEffect(() => {
     void hydrateBookings();
-    void hydrateNotifications();
     void hydratePets();
-  }, [hydrateBookings, hydrateNotifications, hydratePets]);
+  }, [hydrateBookings, hydratePets]);
 
   return (
     <Tabs

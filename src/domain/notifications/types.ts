@@ -17,6 +17,8 @@ export type NotificationIntent = {
   createdAtISO: string;
   title: string;
   body: string;
+  localDeliveredAtISO?: string;
+  localNotificationId?: string;
 };
 
 export type NotificationIntentInput = Omit<NotificationIntent, "id"> & {
@@ -36,6 +38,10 @@ function normalizeOptionalString(value: unknown) {
 
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeOptionalISO(value: unknown) {
+  return isValidISO(value) ? value : undefined;
 }
 
 function isNotificationIntentType(value: unknown): value is NotificationIntentType {
@@ -65,6 +71,8 @@ export function createNotificationIntent(
     createdAtISO: input.createdAtISO,
     title: input.title.trim(),
     body: input.body.trim(),
+    localDeliveredAtISO: normalizeOptionalISO(input.localDeliveredAtISO),
+    localNotificationId: normalizeOptionalString(input.localNotificationId),
   };
 }
 
@@ -100,5 +108,7 @@ export function normalizeNotificationIntent(value: unknown): NotificationIntent 
     createdAtISO: record.createdAtISO,
     title: record.title,
     body: record.body,
+    localDeliveredAtISO: normalizeOptionalISO(record.localDeliveredAtISO),
+    localNotificationId: normalizeOptionalString(record.localNotificationId),
   });
 }
