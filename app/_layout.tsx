@@ -4,6 +4,7 @@ import { ActivityIndicator, View } from "react-native";
 import { deliverNotificationIntentLocallyAsync } from "../src/lib/localNotificationDelivery";
 import { useAuthStore } from "../src/store/authStore";
 import { useNotificationsStore } from "../src/store/notificationsStore";
+import { useRoleSimulationStore } from "../src/store/roleSimulationStore";
 import { theme } from "../src/theme/theme";
 
 export default function RootLayout() {
@@ -18,6 +19,8 @@ export default function RootLayout() {
   const notificationIntents = useNotificationsStore((s) => s.intents);
   const notificationsHydrated = useNotificationsStore((s) => s.hydrated);
   const hydrateNotifications = useNotificationsStore((s) => s.hydrate);
+  const roleHydrated = useRoleSimulationStore((s) => s.hydrated);
+  const hydrateRoleSimulation = useRoleSimulationStore((s) => s.hydrate);
   const markIntentLocallyDelivered = useNotificationsStore(
     (s) => s.markIntentLocallyDelivered,
   );
@@ -25,7 +28,8 @@ export default function RootLayout() {
   useEffect(() => {
     void hydrate();
     void hydrateNotifications();
-  }, [hydrate, hydrateNotifications]);
+    void hydrateRoleSimulation();
+  }, [hydrate, hydrateNotifications, hydrateRoleSimulation]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -125,7 +129,7 @@ export default function RootLayout() {
     user,
   ]);
 
-  if (!hydrated) {
+  if (!hydrated || !roleHydrated) {
     return (
       <View
         style={{

@@ -42,6 +42,7 @@ import {
 } from "../src/domain/notifications";
 import { useBookingsStore } from "../src/store/bookingsStore";
 import { useNotificationsStore } from "../src/store/notificationsStore";
+import { useRoleSimulationStore } from "../src/store/roleSimulationStore";
 import { theme } from "../src/theme/theme";
 import { BottomSheet } from "../src/ui/BottomSheet";
 import { Button } from "../src/ui/Button";
@@ -1013,6 +1014,60 @@ function InlinePickerActionButton({
     </Pressable>
   );
 }
+
+function RoleModeToggle({
+  role,
+  onChange,
+}: {
+  role: "caregiver" | "client";
+  onChange: (role: "caregiver" | "client") => void;
+}) {
+  const options = [
+    { role: "caregiver" as const, label: "Cuidador", helper: "Modo operativo" },
+    { role: "client" as const, label: "Cliente", helper: "Solo lectura" },
+  ];
+
+  return (
+    <Card style={{ marginTop: theme.spacing(2) }}>
+      <Text style={{ color: theme.colors.text, fontWeight: "900", fontSize: 16 }}>
+        Modo: {role === "caregiver" ? "Cuidador" : "Cliente"}
+      </Text>
+      <Text style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}>
+        Simulacion temporal para alternar el panel operativo y la vista de cliente.
+      </Text>
+
+      <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+        {options.map((option) => {
+          const active = role === option.role;
+
+          return (
+            <Pressable
+              key={option.role}
+              onPress={() => onChange(option.role)}
+              style={({ pressed }) => ({
+                flex: 1,
+                borderRadius: theme.radius.lg,
+                borderWidth: 1,
+                borderColor: active ? "rgba(87,215,255,0.36)" : theme.colors.line,
+                backgroundColor: active ? "rgba(87,215,255,0.12)" : theme.colors.surface2,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                opacity: pressed ? 0.94 : 1,
+              })}
+            >
+              <Text style={{ color: theme.colors.text, fontWeight: "900", fontSize: 14 }}>
+                {option.label}
+              </Text>
+              <Text style={{ color: theme.colors.muted, marginTop: 4, fontSize: 12 }}>
+                {option.helper}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </Card>
+  );
+}
 export default function BookingCareScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -1022,6 +1077,8 @@ export default function BookingCareScreen() {
   const updateTimelineEvent = useBookingsStore((state) => state.updateTimelineEvent);
   const deleteTimelineEvent = useBookingsStore((state) => state.deleteTimelineEvent);
   const enqueueNotificationIntent = useNotificationsStore((state) => state.enqueueIntent);
+  const role = useRoleSimulationStore((state) => state.role);
+  const setRole = useRoleSimulationStore((state) => state.setRole);
 
   const booking = useMemo(
     () => bookings.find((item) => item.id === bookingId),
@@ -1159,6 +1216,7 @@ export default function BookingCareScreen() {
   const bookingPlanSupportsPostWalkPhoto = booking
     ? planSupportsPostWalkPhoto(booking.planId)
     : false;
+  const isCaregiverMode = role === "caregiver";
   const isEditMode = editingEvent !== null;
   const selectedDefinition = selectedType
     ? getBookingCareEventDefinition(selectedType)
@@ -1254,6 +1312,16 @@ export default function BookingCareScreen() {
       ? selectedTimestampSummary
       : formatCreatedAt(editingEvent.createdAtISO)
     : formatCreatedAt(new Date().toISOString());
+  const screenTitle = isCaregiverMode
+    ? isEditMode
+      ? "Editar cuidado"
+      : "Registrar cuidado"
+    : "Ver cuidado";
+  const screenDescription = isCaregiverMode
+    ? isEditMode
+      ? "Ajusta el evento seleccionado sin salir del panel operativo y manteniendo su trazabilidad local."
+      : "Captura eventos reales del cuidado con una vista mas clara y lista para operar desde el movil."
+    : "Vista de cliente en solo lectura para seguir el timeline, fotos y resumenes ya registrados.";
   const registerButtonTitle = isEditMode
     ? "Guardar cambios"
     : isWalkSelected
@@ -1305,7 +1373,12 @@ export default function BookingCareScreen() {
   };
 
   const startEditing = (event: CareTimelineEvent) => {
-    if (!canRegister || !canMutateTimelineEvent(event) || registerSubmissionLockRef.current) {
+    if (
+      !isCaregiverMode ||
+      !canRegister ||
+      !canMutateTimelineEvent(event) ||
+      registerSubmissionLockRef.current
+    ) {
       return;
     }
 
@@ -1341,6 +1414,7 @@ export default function BookingCareScreen() {
 
   const pickPhotoAttachmentFromLibrary = async () => {
     if (
+      !isCaregiverMode ||
       !canRegister ||
       registerSubmissionLockRef.current ||
       isRegisterFeedbackActive ||
@@ -1378,6 +1452,7 @@ export default function BookingCareScreen() {
 
   const capturePhotoAttachment = async () => {
     if (
+      !isCaregiverMode ||
       !canRegister ||
       registerSubmissionLockRef.current ||
       isRegisterFeedbackActive ||
@@ -1415,6 +1490,7 @@ export default function BookingCareScreen() {
 
   const pickPhotoAttachment = () => {
     if (
+      !isCaregiverMode ||
       !canRegister ||
       registerSubmissionLockRef.current ||
       isRegisterFeedbackActive ||
@@ -1460,6 +1536,10 @@ export default function BookingCareScreen() {
   };
 
   const startPostWalkPhotoFlow = () => {
+    if (!isCaregiverMode) {
+      return;
+    }
+
     setShowPostWalkPhotoPrompt(false);
     setSelectedType("photo_update");
     setEditingEventId(null);
@@ -1529,6 +1609,7 @@ export default function BookingCareScreen() {
   const startWalkSession = async () => {
     if (
       !booking ||
+      !isCaregiverMode ||
       !canRegister ||
       isEditMode ||
       selectedType !== "walk" ||
@@ -1598,7 +1679,7 @@ export default function BookingCareScreen() {
   };
 
   const finishWalkSession = () => {
-    if (!walkSession || walkSession.status !== "in_progress" || walkBusy) {
+    if (!isCaregiverMode || !walkSession || walkSession.status !== "in_progress" || walkBusy) {
       return;
     }
 
@@ -1618,7 +1699,7 @@ export default function BookingCareScreen() {
   };
 
   const onSave = () => {
-    if (!booking || !selectedType || !canRegister) return;
+    if (!booking || !selectedType || !canRegister || !isCaregiverMode) return;
     if (!isEditMode && registerSubmissionLockRef.current) return;
 
     const validation = validateBookingCareEventDraft({
@@ -1758,6 +1839,7 @@ export default function BookingCareScreen() {
   const confirmDeleteEvent = (event: CareTimelineEvent) => {
     if (
       !booking ||
+      !isCaregiverMode ||
       !canRegister ||
       !canMutateTimelineEvent(event) ||
       registerSubmissionLockRef.current
@@ -1818,12 +1900,22 @@ export default function BookingCareScreen() {
 
   return (
     <Screen>
+      <View
+        style={{
+          backgroundColor: theme.colors.bg,
+          paddingHorizontal: theme.spacing(2),
+          paddingTop: theme.spacing(2),
+        }}
+      >
+        <RoleModeToggle role={role} onChange={setRole} />
+      </View>
       <ScrollView>
         <View
           style={{
             flex: 1,
             backgroundColor: theme.colors.bg,
             padding: theme.spacing(2),
+            paddingTop: theme.spacing(1),
           }}
         >
           <View
@@ -1872,12 +1964,10 @@ export default function BookingCareScreen() {
           </View>
 
           <Text style={{ color: theme.colors.text, fontSize: 28, fontWeight: "900", marginTop: 18 }}>
-            {isEditMode ? "Editar cuidado" : "Registrar cuidado"}
+            {screenTitle}
           </Text>
           <Text style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}>
-            {isEditMode
-              ? "Ajusta el evento seleccionado sin salir del panel operativo y manteniendo su trazabilidad local."
-              : "Captura eventos reales del cuidado con una vista mas clara y lista para operar desde el movil."}
+            {screenDescription}
           </Text>
 
           <Card style={{ marginTop: theme.spacing(2) }}>
@@ -1947,7 +2037,8 @@ export default function BookingCareScreen() {
             </View>
           </Card>
 
-          {canRegister ? (
+          {isCaregiverMode ? (
+            canRegister ? (
             <Card style={{ marginTop: theme.spacing(2) }}>
               <View
                 style={{
@@ -2816,7 +2907,7 @@ export default function BookingCareScreen() {
                 </View>
               ) : null}
             </Card>
-          ) : (
+            ) : (
             <Card style={{ marginTop: theme.spacing(2) }}>
               <Text style={{ color: theme.colors.text, fontWeight: "900", fontSize: 16 }}>
                 Registro bloqueado
@@ -2836,6 +2927,49 @@ export default function BookingCareScreen() {
                 <Button title="Volver al historial" variant="ghost" onPress={goToHistory} />
               </View>
             </Card>
+            )
+          ) : (
+            <Card style={{ marginTop: theme.spacing(2) }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: theme.colors.text,
+                      fontWeight: "900",
+                      fontSize: 16,
+                    }}
+                  >
+                    Vista cliente
+                  </Text>
+                  <Text style={{ color: theme.colors.muted, marginTop: 6, lineHeight: 18 }}>
+                    El composer y los controles operativos quedan ocultos. El cliente mantiene
+                    acceso a timeline, fotos, resumen del paseo y preview del mapa cuando ya existen.
+                  </Text>
+                </View>
+
+                <View
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.10)",
+                    backgroundColor: theme.colors.surface,
+                  }}
+                >
+                  <Text style={{ color: theme.colors.text, fontWeight: "800", fontSize: 12 }}>
+                    Solo lectura
+                  </Text>
+                </View>
+              </View>
+            </Card>
           )}
 
           <Card style={{ marginTop: theme.spacing(2) }}>
@@ -2850,14 +2984,15 @@ export default function BookingCareScreen() {
 
             <View style={{ marginTop: 12, gap: 12 }}>
               {recentEvents.map((event) => {
-                const canManage = canRegister && canMutateTimelineEvent(event);
+                const canManage =
+                  isCaregiverMode && canRegister && canMutateTimelineEvent(event);
 
                 return (
                   <TimelinePreviewRow
                     key={event.id}
                     event={event}
                     canManage={canManage}
-                    isEditing={editingEventId === event.id}
+                    isEditing={isCaregiverMode && editingEventId === event.id}
                     onEdit={() => startEditing(event)}
                     onDelete={() => confirmDeleteEvent(event)}
                   />
@@ -2916,6 +3051,7 @@ export default function BookingCareScreen() {
       <BottomSheet
         visible={
           showPostWalkPhotoPrompt &&
+          isCaregiverMode &&
           bookingPlanSupportsPostWalkPhoto &&
           !selectedDefinition &&
           !isEditMode
