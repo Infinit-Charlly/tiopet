@@ -881,6 +881,83 @@ export default function HistoryScreen() {
                           </Text>
                         </Pressable>
                       ) : null}
+
+                      <Pressable
+                        onPress={() =>
+                          router.push({
+                            pathname: "/booking-report",
+                            params: { bookingId: booking.id },
+                          })
+                        }
+                        style={({ pressed }) => ({
+                          marginTop: 2,
+                          borderRadius: theme.radius.lg,
+                          borderWidth: 1,
+                          borderColor: "rgba(87,215,255,0.18)",
+                          backgroundColor: "rgba(87,215,255,0.08)",
+                          paddingHorizontal: 14,
+                          paddingVertical: 14,
+                          opacity: pressed ? 0.92 : 1,
+                        })}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 12,
+                          }}
+                        >
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                            <View
+                              style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 18,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: "rgba(255,255,255,0.06)",
+                                borderWidth: 1,
+                                borderColor: "rgba(255,255,255,0.06)",
+                              }}
+                            >
+                              <MaterialCommunityIcons
+                                name="file-document-outline"
+                                size={18}
+                                color={theme.colors.warn}
+                              />
+                            </View>
+
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={{
+                                  color: theme.colors.text,
+                                  fontSize: 14,
+                                  fontWeight: "900",
+                                }}
+                              >
+                                Abrir reporte diario
+                              </Text>
+                              <Text
+                                style={{
+                                  color: theme.colors.muted,
+                                  fontSize: 12,
+                                  lineHeight: 17,
+                                  marginTop: 2,
+                                }}
+                              >
+                                Vista premium y de solo lectura con fotos, paseos y notas del dia.
+                              </Text>
+                            </View>
+                          </View>
+
+                          <MaterialCommunityIcons
+                            name="chevron-right"
+                            size={20}
+                            color={theme.colors.text}
+                          />
+                        </View>
+                      </Pressable>
                     </View>
 
                     <View
