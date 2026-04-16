@@ -73,6 +73,16 @@ export default function RootLayout() {
         }}
       />
 
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: "Inbox",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="notifications" size={size ?? 24} color={color} />
+          ),
+        }}
+      />
+
       {/* Cuenta */}
       <Tabs.Screen
         name="profile"
