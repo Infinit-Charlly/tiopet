@@ -18,16 +18,21 @@ import {
   CITY_OPTIONS,
   CUSTOM_DATE_PICK,
   DATE_PICK_OPTIONS,
+  createDefaultBookingAddons,
   formatBookingDateLabel,
   getCareTimeLabel,
   getDateForPresetPick,
+  getActiveBookingAddons,
   getPlanById,
   getPlanHighlightIcon,
   getPlanIcon,
   getTransportLabel,
+  isBookingAddonActive,
   moneyUSD,
   PLANS,
   TRANSPORT_OPTIONS,
+  type BookingAddon,
+  type BookingAddonId,
   type CareTime,
   type City,
   type DatePick,
@@ -336,10 +341,12 @@ export default function BookingsScreen() {
   // ✅ Transporte (MVP) — dentro del componente (NO redeclare)
   const [transportNeeded, setTransportNeeded] = useState(false);
   const [transportType, setTransportType] =
-    useState<TransportType>("ida_vuelta");
+    useState<TransportType>("both");
 
   // Add-on opcional (MVP): revisión vet
-  const [vetCheck, setVetCheck] = useState(false);
+  const [addons, setAddons] = useState<BookingAddon[]>(() =>
+    createDefaultBookingAddons(),
+  );
 
   // fecha picker
   const [customDate, setCustomDate] = useState<Date | null>(new Date());
@@ -354,6 +361,11 @@ export default function BookingsScreen() {
   const selectedPet = useMemo(
     () => pets.find((p) => p.id === petId) ?? null,
     [pets, petId],
+  );
+  const activeAddons = useMemo(() => getActiveBookingAddons(addons), [addons]);
+  const vetCheck = useMemo(
+    () => isBookingAddonActive(addons, "vet_check"),
+    [addons],
   );
 
   const accent = useMemo(() => {
@@ -380,6 +392,18 @@ export default function BookingsScreen() {
       transportType,
     });
   }, [selectedPlan, city, vetCheck, transportNeeded, transportType]);
+
+  function setAddonActive(addonId: BookingAddonId, active: boolean) {
+    setAddons((current) =>
+      current.map((addon) =>
+        addon.id === addonId ? { ...addon, active } : addon,
+      ),
+    );
+  }
+
+  const setVetCheck = (value: boolean) => {
+    setAddonActive("vet_check", value);
+  };
 
   return (
     <Screen>
@@ -888,7 +912,7 @@ export default function BookingsScreen() {
               fontWeight: "800",
             }}
           >
-            Add-ons (opcional)
+            Servicios adicionales (opcional)
           </Text>
 
           <View
@@ -913,6 +937,76 @@ export default function BookingsScreen() {
               Revisión veterinaria (aliado)
             </Text>
             <Switch value={vetCheck} onValueChange={setVetCheck} />
+          </View>
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingVertical: 10,
+              borderTopWidth: 1,
+              borderTopColor: "rgba(255,255,255,0.06)",
+            }}
+          >
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text
+                style={{
+                  color: theme.colors.text,
+                  fontWeight: "700",
+                }}
+              >
+                Grooming basico
+              </Text>
+              <Text
+                style={{
+                  color: theme.colors.muted,
+                  marginTop: 4,
+                  lineHeight: 18,
+                }}
+              >
+                Un refresh suave para que termine el dia limpio y comodo.
+              </Text>
+            </View>
+            <Switch
+              value={isBookingAddonActive(addons, "grooming_basic")}
+              onValueChange={(value) => setAddonActive("grooming_basic", value)}
+            />
+          </View>
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingVertical: 10,
+              borderTopWidth: 1,
+              borderTopColor: "rgba(255,255,255,0.06)",
+            }}
+          >
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text
+                style={{
+                  color: theme.colors.text,
+                  fontWeight: "700",
+                }}
+              >
+                Alimentacion premium
+              </Text>
+              <Text
+                style={{
+                  color: theme.colors.muted,
+                  marginTop: 4,
+                  lineHeight: 18,
+                }}
+              >
+                Servicio de alimentacion con indicaciones de cuidado mas detalladas.
+              </Text>
+            </View>
+            <Switch
+              value={isBookingAddonActive(addons, "premium_feeding")}
+              onValueChange={(value) => setAddonActive("premium_feeding", value)}
+            />
           </View>
 
           <Text
@@ -1005,6 +1099,13 @@ export default function BookingsScreen() {
                 label="Transporte"
                 value={getTransportLabel(transportNeeded, transportType)}
               />
+              {activeAddons.length > 0 ? (
+                <Chip
+                  icon="star-four-points-outline"
+                  label="Extras"
+                  value={activeAddons.map((addon) => addon.label).join(", ")}
+                />
+              ) : null}
             </View>
           </View>
 
@@ -1056,6 +1157,8 @@ export default function BookingsScreen() {
                     totalUSD: moneyUSD(total),
                     transportNeeded: String(transportNeeded),
                     transportType,
+                    addons: JSON.stringify(addons),
+                    vetCheck: String(vetCheck),
                   },
                 });
               }}

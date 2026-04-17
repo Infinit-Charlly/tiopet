@@ -3,8 +3,17 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useRef } from "react";
 import { ScrollView, Text, View } from "react-native";
 
-import { createBookingCreatedEvent, createBookingQrState } from "../src/domain/bookings";
-import { TransportType, useBookingsStore } from "../src/store/bookingsStore";
+import {
+  createBookingAddons,
+  createBookingCreatedEvent,
+  createBookingQrState,
+  getActiveBookingAddons,
+  normalizeBookingAddons,
+} from "../src/domain/bookings";
+import {
+  TransportType,
+  useBookingsStore,
+} from "../src/store/bookingsStore";
 import { theme } from "../src/theme/theme";
 import { Button } from "../src/ui/Button";
 import { Card } from "../src/ui/Card";
@@ -36,10 +45,10 @@ function makeId(prefix = "b") {
 }
 
 function transportLabel(type?: TransportType) {
-  if (!type) return "No";
-  if (type === "ida") return "Solo ida";
-  if (type === "vuelta") return "Solo vuelta";
-  return "Ida y vuelta";
+  if (!type || type === "none") return "No";
+  if (type === "pickup") return "Solo recogida";
+  if (type === "dropoff") return "Solo entrega";
+  return "Recogida y entrega";
 }
 
 function formatCreatedAt(iso: string) {
@@ -54,6 +63,18 @@ function formatCreatedAt(iso: string) {
     });
   } catch {
     return "-";
+  }
+}
+
+function parseAddonsParam(value: unknown) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return undefined;
+  }
+
+  try {
+    return normalizeBookingAddons(JSON.parse(value));
+  } catch {
+    return undefined;
   }
 }
 
@@ -83,15 +104,22 @@ export default function ConfirmScreen() {
   const transportNeeded = pickString(params.transportNeeded, "false") === "true";
   const transportType = pickEnum<TransportType>(
     params.transportType,
-    ["ida", "vuelta", "ida_vuelta"],
-    "ida_vuelta",
+    ["none", "pickup", "dropoff", "both"],
+    "both",
   );
+  const vetCheck = pickString(params.vetCheck, "false") === "true";
+  const parsedAddons = parseAddonsParam(params.addons);
 
   const planIcon = useMemo(() => {
     if (planId === "bb") return "shield-check";
     if (planId === "consientan") return "heart";
     return "crown";
   }, [planId]);
+  const addons = useMemo(
+    () => parsedAddons ?? createBookingAddons(vetCheck ? ["vet_check"] : []),
+    [parsedAddons, vetCheck],
+  );
+  const activeAddons = useMemo(() => getActiveBookingAddons(addons), [addons]);
 
   const confirmedRef = useRef(false);
 
@@ -116,7 +144,8 @@ export default function ConfirmScreen() {
       status: "pendiente",
       createdAtISO,
       transportNeeded,
-      transportType: transportNeeded ? transportType : undefined,
+      transportType: transportNeeded ? transportType : "none",
+      addons,
       qr: createBookingQrState({
         bookingId,
         createdAtISO,
@@ -216,6 +245,13 @@ export default function ConfirmScreen() {
                 label="Transporte"
                 value={transportNeeded ? transportLabel(transportType) : "No"}
               />
+              {activeAddons.length > 0 ? (
+                <Row
+                  icon="star-four-points-outline"
+                  label="Servicios"
+                  value={activeAddons.map((addon) => addon.label).join(", ")}
+                />
+              ) : null}
               <Row
                 icon="clock-time-four-outline"
                 label="Reserva"

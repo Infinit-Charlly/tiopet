@@ -13,11 +13,13 @@ import {
   createTimelineEvent,
   disableBookingQr,
   hasCompleteWalkSummary,
+  normalizeBookingAddons,
   normalizeBookingQrState,
   normalizeTimelineEvents,
   sortTimelineEvents,
   validateCareEventCreatedAtISOWithinServiceWindow,
   validateBookingCareEventDraft,
+  type BookingAddon,
   type BookingCareEventType,
   type BookingQrConsumeError,
   type BookingQrIntent,
@@ -29,6 +31,7 @@ import {
 
 export type BookingStatus = "pendiente" | "confirmada" | "cancelada";
 export type {
+  BookingAddon,
   BookingQrIntent,
   BookingQrPhase,
   BookingQrState,
@@ -49,7 +52,13 @@ export type Booking = {
   status: BookingStatus;
   createdAtISO: string;
   transportNeeded?: boolean;
-  transportType?: TransportType;
+  transportType: TransportType;
+  pickupAddress?: string;
+  dropoffAddress?: string;
+  transportNotes?: string;
+  addons?: BookingAddon[];
+  ccpName?: string;
+  ccpAddress?: string;
   qr: BookingQrState;
   timeline: CareTimelineEvent[];
 };
@@ -226,10 +235,28 @@ function normalizeBookingStatus(value: unknown): BookingStatus {
   return "pendiente";
 }
 
-function normalizeTransportType(value: unknown) {
-  return value === "ida" || value === "vuelta" || value === "ida_vuelta"
-    ? value
-    : undefined;
+function normalizeOptionalString(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function normalizeTransportType(
+  value: unknown,
+  fallback: TransportType = "none",
+): TransportType {
+  if (
+    value === "none" ||
+    value === "pickup" ||
+    value === "dropoff" ||
+    value === "both"
+  ) {
+    return value;
+  }
+
+  if (value === "ida") return "pickup";
+  if (value === "vuelta") return "dropoff";
+  if (value === "ida_vuelta") return "both";
+
+  return fallback;
 }
 
 function normalizeHydratedBooking(
@@ -242,7 +269,12 @@ function normalizeHydratedBooking(
       ? raw.createdAtISO
       : new Date().toISOString();
   const status = normalizeBookingStatus(raw.status);
-  const transportNeeded = raw.transportNeeded === true;
+  const normalizedTransportType = normalizeTransportType(
+    raw.transportType,
+    raw.transportNeeded === true ? "both" : "none",
+  );
+  const transportNeeded =
+    raw.transportNeeded === true || normalizedTransportType !== "none";
   const timelineBase = normalizeTimelineEvents(raw.timeline, createdAtISO, {
     includeConfirmedEvent: status === "confirmada",
     includeCancelledEvent: status === "cancelada",
@@ -280,9 +312,13 @@ function normalizeHydratedBooking(
     status,
     createdAtISO,
     transportNeeded,
-    transportType: transportNeeded
-      ? normalizeTransportType(raw.transportType)
-      : undefined,
+    transportType: transportNeeded ? normalizedTransportType : "none",
+    pickupAddress: normalizeOptionalString(raw.pickupAddress),
+    dropoffAddress: normalizeOptionalString(raw.dropoffAddress),
+    transportNotes: normalizeOptionalString(raw.transportNotes),
+    addons: normalizeBookingAddons(raw.addons),
+    ccpName: normalizeOptionalString(raw.ccpName),
+    ccpAddress: normalizeOptionalString(raw.ccpAddress),
     qr,
     timeline,
   };

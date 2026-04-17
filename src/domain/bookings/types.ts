@@ -4,7 +4,18 @@ export type PresetDatePick = Exclude<DatePick, "Otra fecha">;
 
 export type PlanId = "bb" | "consientan" | "principe";
 export type CareTime = "day" | "full";
-export type TransportType = "ida" | "vuelta" | "ida_vuelta";
+export type TransportType = "none" | "pickup" | "dropoff" | "both";
+export type BookingAddonId =
+  | "vet_check"
+  | "grooming_basic"
+  | "premium_feeding";
+
+export type BookingAddon = {
+  id: BookingAddonId | string;
+  label: string;
+  active: boolean;
+  description?: string;
+};
 
 export type LabeledValue<T extends string> = {
   value: T;

@@ -1,5 +1,6 @@
 export * from "./dates";
 export * from "./careEvents";
+export * from "./addons";
 export * from "./labels";
 export * from "./options";
 export * from "./plans";
