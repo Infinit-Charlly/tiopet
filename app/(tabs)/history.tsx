@@ -18,6 +18,7 @@ import { Button } from "../../src/ui/Button";
 import { Card } from "../../src/ui/Card";
 import { HoldButton } from "../../src/ui/HoldButton";
 import { Screen } from "../../src/ui/Screen";
+import { HistoryServiceContext } from "../../src/ui/ServiceContextPanel";
 import { WalkRoutePreview } from "../../src/ui/WalkRoutePreview";
 
 type Filter = "todas" | "pendiente" | "confirmada" | "cancelada";
@@ -80,13 +81,6 @@ function Pill({
       </Text>
     </Pressable>
   );
-}
-
-function transportLabel(type?: Booking["transportType"]) {
-  if (!type) return "-";
-  if (type === "ida") return "Solo ida";
-  if (type === "vuelta") return "Solo vuelta";
-  return "Ida y vuelta";
 }
 
 function formatCreatedAt(iso: string) {
@@ -679,9 +673,6 @@ export default function HistoryScreen() {
                   booking.careTime === "day"
                     ? "Dia laboral (08:30 - 18:00)"
                     : "24 horas (Hospedaje)";
-                const transportText = booking.transportNeeded
-                  ? transportLabel(booking.transportType)
-                  : "No necesita";
                 const reservedAtText = formatCreatedAt(booking.createdAtISO);
                 const canAct = booking.status === "pendiente";
                 const canRegisterCare = canRegisterBookingCareEvents(booking.qr.phase);
@@ -790,7 +781,7 @@ export default function HistoryScreen() {
                       {careTimeLabel}
                     </Text>
 
-                    <Line icon="car" label="Transporte" value={transportText} />
+                    <HistoryServiceContext booking={booking} />
                     <Line
                       icon="qrcode"
                       label="QR"

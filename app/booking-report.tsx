@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { Text, View } from "react-native";
 
 import { useBookingsStore } from "../src/store/bookingsStore";
+import { usePetsStore } from "../src/store/petsStore";
 import { theme } from "../src/theme/theme";
 import { Button } from "../src/ui/Button";
 import { Card } from "../src/ui/Card";
@@ -15,11 +16,23 @@ export default function BookingReportScreen() {
   const bookingId = typeof params.bookingId === "string" ? params.bookingId : "";
   const requestedDayKey = typeof params.dayKey === "string" ? params.dayKey : undefined;
   const bookings = useBookingsStore((state) => state.bookings);
+  const pets = usePetsStore((state) => state.pets);
 
   const booking = useMemo(
     () => bookings.find((item) => item.id === bookingId),
     [bookings, bookingId],
   );
+  const pet = useMemo(() => {
+    if (!booking) {
+      return undefined;
+    }
+
+    if (booking.petId) {
+      return pets.find((item) => item.id === booking.petId);
+    }
+
+    return pets.find((item) => item.name === booking.petName);
+  }, [booking, pets]);
 
   if (!booking) {
     return (
@@ -49,6 +62,7 @@ export default function BookingReportScreen() {
   return (
     <DailyCareReportView
       booking={booking}
+      pet={pet}
       requestedDayKey={requestedDayKey}
       onBack={() => router.back()}
     />

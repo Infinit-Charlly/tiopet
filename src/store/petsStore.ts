@@ -3,7 +3,7 @@ import { create } from "zustand";
 
 export type PetType = "Perro" | "Gato";
 export type Sex = "Macho" | "Hembra";
-export type Size = "Pequeño" | "Mediano" | "Grande";
+export type Size = "Peque\u00f1o" | "Mediano" | "Grande";
 export type Social = "Amistoso" | "Selectivo" | "Aislado";
 
 export type Pet = {
@@ -14,6 +14,10 @@ export type Pet = {
   age: string;
   size: Size;
   social: Social;
+  photoUri?: string;
+  notes?: string;
+  temperament?: string;
+  specialCare?: string;
 };
 
 type State = {
@@ -48,11 +52,44 @@ function fixDuplicateIds(list: Pet[]) {
       seen.add(id);
       return { ...p, id };
     }
+
     seen.add(p.id);
     return p;
   });
 
   return { fixed, changed };
+}
+
+function normalizeOptionalString(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function normalizeHydratedPet(raw: Partial<Pet> & Record<string, unknown>): Pet {
+  return {
+    id: typeof raw.id === "string" && raw.id.length > 0 ? raw.id : newId(),
+    type: raw.type === "Gato" ? "Gato" : "Perro",
+    name:
+      typeof raw.name === "string" && raw.name.length > 0
+        ? raw.name
+        : "Peludito",
+    sex: raw.sex === "Hembra" ? "Hembra" : "Macho",
+    age:
+      typeof raw.age === "string" && raw.age.length > 0
+        ? raw.age
+        : "Cachorro",
+    size:
+      raw.size === "Peque\u00f1o" || raw.size === "Grande"
+        ? raw.size
+        : "Mediano",
+    social:
+      raw.social === "Selectivo" || raw.social === "Aislado"
+        ? raw.social
+        : "Amistoso",
+    photoUri: normalizeOptionalString(raw.photoUri),
+    notes: normalizeOptionalString(raw.notes),
+    temperament: normalizeOptionalString(raw.temperament),
+    specialCare: normalizeOptionalString(raw.specialCare),
+  };
 }
 
 export const usePetsStore = create<State>((set, get) => ({
@@ -85,12 +122,18 @@ export const usePetsStore = create<State>((set, get) => ({
   hydrate: async () => {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      const parsed = raw ? (JSON.parse(raw) as Pet[]) : [];
-      const { fixed, changed } = fixDuplicateIds(parsed);
+      const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+      const list = Array.isArray(parsed) ? parsed : [];
+      const normalized = list.map((item) =>
+        normalizeHydratedPet(item as Partial<Pet> & Record<string, unknown>),
+      );
+      const { fixed, changed } = fixDuplicateIds(normalized);
+      const nextRaw = JSON.stringify(fixed);
 
       set({ pets: fixed, hydrated: true });
-      if (changed)
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(fixed));
+      if (changed || raw !== nextRaw) {
+        await AsyncStorage.setItem(STORAGE_KEY, nextRaw);
+      }
     } catch {
       set({ hydrated: true });
     }

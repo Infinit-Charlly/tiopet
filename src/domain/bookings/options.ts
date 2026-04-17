@@ -13,9 +13,9 @@ export const CITY_OPTIONS: readonly City[] = [
 ];
 
 export const TRANSPORT_OPTIONS: readonly LabeledValue<TransportType>[] = [
-  { value: "ida", label: "Solo ida" },
-  { value: "vuelta", label: "Solo vuelta" },
-  { value: "ida_vuelta", label: "Ida y vuelta" },
+  { value: "pickup", label: "Solo recogida" },
+  { value: "dropoff", label: "Solo entrega" },
+  { value: "both", label: "Recogida y entrega" },
 ];
 
 export const DATE_PICK_OPTIONS: readonly PresetDatePick[] = [

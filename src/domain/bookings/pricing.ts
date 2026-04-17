@@ -7,9 +7,10 @@ const CITY_SURCHARGES: Record<City, number> = {
 };
 
 const TRANSPORT_SURCHARGES: Record<TransportType, number> = {
-  ida: 2,
-  vuelta: 2,
-  ida_vuelta: 4,
+  none: 0,
+  pickup: 2,
+  dropoff: 2,
+  both: 4,
 };
 
 const VET_CHECK_PRICE = 8;

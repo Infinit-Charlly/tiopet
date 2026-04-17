@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Children, type ReactNode } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, Text, View } from "react-native";
 
 import {
   getPlanIcon,
@@ -13,9 +13,15 @@ import {
   type CareTimelineEventType,
 } from "../domain/bookings";
 import type { Booking } from "../store/bookingsStore";
+import type { Pet } from "../store/petsStore";
 import { theme } from "../theme/theme";
 import { Card } from "./Card";
 import { Screen } from "./Screen";
+import {
+  getReportServiceContextEntries,
+  hasReportServiceContext,
+  ReportServiceContext,
+} from "./ServiceContextPanel";
 import { WalkRoutePreview } from "./WalkRoutePreview";
 
 const REPORT_EXCLUDED_EVENT_TYPES = new Set<CareTimelineEventType>([
@@ -199,6 +205,122 @@ function buildReport(booking: Booking, requestedDayKey?: string) {
   };
 }
 
+type DailyCareReport = ReturnType<typeof buildReport>;
+
+function formatCountLabel(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function truncateShareText(value: string, maxLength = 140) {
+  const trimmed = value.trim().replace(/\s+/g, " ");
+
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, Math.max(0, maxLength - 1)).trimEnd()}...`;
+}
+
+function summarizeNoteForShare(event: CareTimelineEvent) {
+  const note = event.note?.trim();
+
+  if (!note) {
+    return event.type === "incident"
+      ? "Se registro una novedad importante durante el cuidado."
+      : "Se dejo una observacion relevante durante la jornada.";
+  }
+
+  if (event.type === "incident") {
+    return `Novedad importante: ${truncateShareText(note, 120)}`;
+  }
+
+  return truncateShareText(note, 120);
+}
+
+function buildShareableReportText(booking: Booking, report: DailyCareReport) {
+  const contextEntries = getReportServiceContextEntries(booking);
+  const lines = [
+    `Asi fue el dia de ${booking.petName}`,
+    report.displayDate !== "-" ? report.displayDate : booking.dateLabel,
+  ];
+  const normalizedPlanName = booking.planName.trim();
+  const planLabel = normalizedPlanName && normalizedPlanName.toLowerCase() !== "plan"
+    ? normalizedPlanName
+    : "";
+
+  if (planLabel) {
+    lines.push(planLabel);
+  }
+
+  if (contextEntries.length > 0) {
+    lines.push(
+      "",
+      "Contexto del servicio",
+      ...contextEntries.map((entry) => `- ${entry.label}: ${entry.value}`),
+    );
+  }
+
+  if (report.storyEvents.length > 0) {
+    lines.push(
+      "",
+      "Resumen del dia",
+      `- Momentos compartidos: ${formatCountLabel(report.storyEvents.length, "registro", "registros")}`,
+      `- Fotos del dia: ${formatCountLabel(report.photoEvents.length, "foto", "fotos")}`,
+      `- Paseos realizados: ${formatCountLabel(report.walkEvents.length, "paseo", "paseos")}`,
+    );
+  } else {
+    lines.push(
+      "",
+      "Hoy todavia no tenemos novedades, fotos o paseos para compartir.",
+      "Si se registra algo mas tarde, este resumen se actualizara desde la app.",
+    );
+  }
+
+  if (report.walkEvents.length > 0) {
+    const walkDuration = formatDurationSummary(report.totalWalkDurationSeconds);
+    const walkDistance = formatDistanceSummary(report.totalWalkDistanceMeters);
+
+    if (walkDuration !== "-") {
+      lines.push(`- Tiempo total de paseo: ${walkDuration}`);
+    }
+
+    if (walkDistance !== "-") {
+      lines.push(`- Distancia recorrida: ${walkDistance}`);
+    }
+  }
+
+  if (report.incidentsCount > 0) {
+    lines.push(
+      `- Novedades importantes: ${formatCountLabel(
+        report.incidentsCount,
+        "incidencia registrada",
+        "incidencias registradas",
+      )}`,
+    );
+  }
+
+  if (report.noteEvents.length > 0) {
+    const noteHighlights = report.noteEvents.slice(0, 3).map(summarizeNoteForShare);
+    const remainingHighlights = report.noteEvents.length - noteHighlights.length;
+
+    lines.push("", "Lo mas importante del dia", ...noteHighlights.map((note) => `- ${note}`));
+
+    if (remainingHighlights > 0) {
+      lines.push(
+        `- Y ${formatCountLabel(
+          remainingHighlights,
+          "detalle adicional",
+          "detalles adicionales",
+        )} ${remainingHighlights === 1 ? "compartido" : "compartidos"} durante el dia.`,
+      );
+    }
+  }
+
+  lines.push("", "Gracias por confiar el cuidado de hoy a TioPet.");
+
+  return lines.join("\n");
+}
+
 function BackPill({ onPress }: { onPress?: () => void }) {
   if (!onPress) {
     return null;
@@ -227,6 +349,31 @@ function BackPill({ onPress }: { onPress?: () => void }) {
         color={theme.colors.text}
       />
       <Text style={{ color: theme.colors.text, fontWeight: "800" }}>Volver</Text>
+    </Pressable>
+  );
+}
+
+function ShareReportButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Compartir reporte diario"
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: "rgba(87,215,255,0.26)",
+        backgroundColor: pressed ? "rgba(87,215,255,0.18)" : "rgba(87,215,255,0.12)",
+      })}
+    >
+      <MaterialCommunityIcons name="share-variant-outline" size={18} color={theme.colors.warn} />
+      <Text style={{ color: theme.colors.text, fontWeight: "900" }}>Compartir resumen</Text>
     </Pressable>
   );
 }
@@ -552,7 +699,7 @@ function WalkCard({ event }: { event: CareTimelineEvent }) {
 function ReportSummarySection({
   report,
 }: {
-  report: ReturnType<typeof buildReport>;
+  report: DailyCareReport;
 }) {
   return (
     <Card
@@ -666,15 +813,33 @@ function NoteCard({ event }: { event: CareTimelineEvent }) {
 
 export function DailyCareReportView({
   booking,
+  pet,
   onBack,
   requestedDayKey,
 }: {
   booking: Booking;
+  pet?: Pet;
   onBack?: () => void;
   requestedDayKey?: string;
 }) {
   const report = buildReport(booking, requestedDayKey);
   const planIcon = getPlanIcon(booking.planId);
+  const shareMessage = buildShareableReportText(booking, report);
+  const showServiceContext = hasReportServiceContext(booking, pet);
+
+  async function handleShareReport() {
+    try {
+      await Share.share({
+        title: `Reporte diario de ${booking.petName}`,
+        message: shareMessage,
+      });
+    } catch {
+      Alert.alert(
+        "No se pudo compartir",
+        "Intenta de nuevo en un momento desde este mismo reporte.",
+      );
+    }
+  }
 
   return (
     <Screen>
@@ -738,7 +903,7 @@ export function DailyCareReportView({
                 {booking.petName}
               </Text>
               <Text style={{ color: theme.colors.muted, lineHeight: 20 }}>
-                Un resumen elegante y de solo lectura del cuidado registrado durante el dia.
+                Un resumen calido y de solo lectura de todo lo compartido durante el dia.
               </Text>
             </View>
 
@@ -814,25 +979,20 @@ export function DailyCareReportView({
                 {booking.planName}
               </Text>
             </View>
+          </View>
 
-            <View
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 9,
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.08)",
-                backgroundColor: "rgba(255,255,255,0.04)",
-              }}
-            >
-              <Text style={{ color: theme.colors.muted, fontWeight: "800" }}>
-                Plan ID: <Text style={{ color: theme.colors.text }}>{booking.planId}</Text>
-              </Text>
-            </View>
+          <View style={{ marginTop: 18 }}>
+            <ShareReportButton onPress={() => void handleShareReport()} />
           </View>
         </Card>
 
         <ReportSummarySection report={report} />
+
+        {showServiceContext ? (
+          <Card style={{ gap: 14 }}>
+            <ReportServiceContext booking={booking} pet={pet} />
+          </Card>
+        ) : null}
 
         <Card style={{ gap: 14 }}>
           <SectionTitle
@@ -852,11 +1012,11 @@ export function DailyCareReportView({
               }}
             >
               <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "900" }}>
-                Aun no hay actividad de cuidado registrada
+                Aun no hay novedades para mostrar
               </Text>
               <Text style={{ color: theme.colors.muted, lineHeight: 20 }}>
-                Cuando existan eventos, fotos o paseos locales para este dia, apareceran aqui
-                como reporte listo para compartir mas adelante.
+                Cuando compartamos el primer momento del dia, lo veras aqui en un resumen claro y
+                listo para acompanarte.
               </Text>
             </View>
           ) : (

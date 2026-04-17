@@ -27,9 +27,10 @@ export function getTransportLabel(
   transportType: TransportType,
 ) {
   if (!transportNeeded) return "No";
-  if (transportType === "ida") return "Solo ida";
-  if (transportType === "vuelta") return "Solo vuelta";
-  return "Ida y vuelta";
+  if (transportType === "pickup") return "Solo recogida";
+  if (transportType === "dropoff") return "Solo entrega";
+  if (transportType === "both") return "Recogida y entrega";
+  return "No";
 }
 
 export function formatBookingDateLabel(
